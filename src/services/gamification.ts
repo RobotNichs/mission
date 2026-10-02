@@ -69,15 +69,22 @@ export function awardStepCompletion(
   state: GamificationState,
   missionId: string,
   stepId: string,
+  stableRewardSlot?: string,
 ): StepRewardResult {
-  const rewardKey = `${missionId}::${stepId}`
-  if (state.claimedStepRewardKeys.includes(rewardKey)) return { state, xpAdded: 0 }
+  const legacyRewardKey = `${missionId}::${stepId}`
+  const rewardKey = stableRewardSlot
+    ? `${missionId}::slot:${stableRewardSlot}`
+    : legacyRewardKey
+  if (
+    state.claimedStepRewardKeys.includes(legacyRewardKey)
+    || state.claimedStepRewardKeys.includes(rewardKey)
+  ) return { state, xpAdded: 0 }
 
   return {
     state: {
       ...state,
       xp: state.xp + XP_PER_STEP,
-      claimedStepRewardKeys: [...state.claimedStepRewardKeys, rewardKey],
+      claimedStepRewardKeys: [...state.claimedStepRewardKeys, legacyRewardKey, ...(rewardKey === legacyRewardKey ? [] : [rewardKey])],
     },
     xpAdded: XP_PER_STEP,
   }

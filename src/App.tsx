@@ -19,14 +19,18 @@ import {
   type EnergyLevel,
   type LearningBlocker,
   type LearningPlan,
+  type LearningPlanClarification,
   type LearningPlanInput,
+  type LearningPlanRequest,
   type LearningStep,
   type LearningStepKind,
 } from './types/learningPlan'
 import type { GamificationState } from './types/gamification'
+import { getStableStepRewardSlot, preserveStepProgress } from './services/learningPlanProgress'
 
 type FormSettings = LearningPlanInput
 type SavedAppState = { form: FormSettings; mission: LearningPlan | null; remainingSeconds: number }
+type PendingClarification = { question: string; input: LearningPlanInput }
 
 const STORAGE_KEY = 'mission.saved-mission.v1'
 const energyCopy: Record<EnergyLevel, { label: string; note: string; icon: string }> = {
@@ -173,6 +177,8 @@ function App() {
   const [rewardNotice, setRewardNotice] = useState<string | null>(null)
   const [missionReward, setMissionReward] = useState<MissionReward | null>(null)
   const [generationNotice, setGenerationNotice] = useState<string | null>(null)
+  const [pendingClarification, setPendingClarification] = useState<PendingClarification | null>(null)
+  const [clarificationAnswer, setClarificationAnswer] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
   const [deadline, setDeadline] = useState<number | null>(null)
@@ -209,35 +215,71 @@ function App() {
     return () => window.clearInterval(interval)
   }, [isRunning, deadline])
 
+  async function generateAndApplyPlan(input: LearningPlanRequest) {
+    const generation = await generateLearningPlanWithStatus(input)
+    setGenerationNotice(generation.notice)
+
+    if (generation.clarifyingQuestion && !input.clarification) {
+      setPendingClarification({
+        question: generation.clarifyingQuestion,
+        input: {
+          goal: input.goal,
+          timeBudgetMinutes: input.timeBudgetMinutes,
+          energyLevel: input.energyLevel,
+          learningBlocker: input.learningBlocker,
+        },
+      })
+      setClarificationAnswer('')
+      return
+    }
+
+    const sameMission = mission?.goal.trim() === input.goal.trim()
+    const reconciledSteps = preserveStepProgress(
+      generation.plan.steps,
+      mission?.steps ?? [],
+      sameMission,
+      mission?.id ?? generation.plan.id,
+      gamification.claimedStepRewardKeys,
+    )
+    setMission({
+      ...generation.plan,
+      id: sameMission && mission ? mission.id : generation.plan.id,
+      steps: reconciledSteps,
+    })
+    setRemainingSeconds(input.timeBudgetMinutes * 60)
+    setIsRunning(false)
+    setDeadline(null)
+    setPendingClarification(null)
+    setClarificationAnswer('')
+  }
+
   async function createMission(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!task.trim() || isGenerating) return
+    if (!task.trim() || isGenerating || pendingClarification) return
     setIsGenerating(true)
-    const planInput: LearningPlanInput = {
-      goal: task,
-      timeBudgetMinutes: minutes,
-      energyLevel: energy,
-      learningBlocker: blocker,
-    }
     try {
-      const generation = await generateLearningPlanWithStatus(planInput)
-      const generatedPlan = generation.plan
-      setGenerationNotice(generation.notice)
-      const sameTask = mission?.goal.trim() === task.trim()
-      const previousSteps = new Map(mission?.steps.map((step) => [step.title, step]))
-      const nextMission: LearningPlan = {
-        ...generatedPlan,
-        id: sameTask && mission ? mission.id : generatedPlan.id,
-        steps: generatedPlan.steps.map((step) => ({
-          ...step,
-          id: sameTask ? previousSteps.get(step.title)?.id ?? step.id : step.id,
-          done: sameTask ? previousSteps.get(step.title)?.done ?? false : false,
-        })),
-      }
-      setMission(nextMission)
-      setRemainingSeconds(minutes * 60)
-      setIsRunning(false)
-      setDeadline(null)
+      await generateAndApplyPlan({
+        goal: task,
+        timeBudgetMinutes: minutes,
+        energyLevel: energy,
+        learningBlocker: blocker,
+      })
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  async function finishClarification(event: React.FormEvent<HTMLFormElement>, skipped: boolean) {
+    event.preventDefault()
+    if (!pendingClarification || isGenerating || (!skipped && !clarificationAnswer.trim())) return
+    const clarification: LearningPlanClarification = {
+      question: pendingClarification.question,
+      answer: skipped ? '' : clarificationAnswer.trim(),
+      skipped,
+    }
+    setIsGenerating(true)
+    try {
+      await generateAndApplyPlan({ ...pendingClarification.input, clarification })
     } finally {
       setIsGenerating(false)
     }
@@ -256,7 +298,13 @@ function App() {
     if (currentStep.done) return
 
     const completesMission = mission.steps.every((step) => step.id === id || step.done)
-    const stepResult = awardStepCompletion(gamification, mission.id, id)
+    const stepIndex = mission.steps.findIndex((step) => step.id === id)
+    const stepResult = awardStepCompletion(
+      gamification,
+      mission.id,
+      id,
+      getStableStepRewardSlot(mission.steps, stepIndex),
+    )
     let nextGamification = stepResult.state
     const notices = stepResult.xpAdded > 0 ? [`+${XP_PER_STEP} XP`] : []
 
@@ -350,7 +398,14 @@ function App() {
             <span className="step-count">01 <i>/ 02</i></span>
           </div>
 
-          <form onSubmit={createMission}>
+          <form onSubmit={(event) => {
+            if (pendingClarification) {
+              const submitter = (event.nativeEvent as SubmitEvent).submitter
+              void finishClarification(event, submitter instanceof HTMLButtonElement && submitter.dataset.skip === 'true')
+              return
+            }
+            void createMission(event)
+          }}>
             <label className="field-label" htmlFor="task">Was möchtest du lernen?</label>
             <div className="textarea-wrap">
               <textarea
@@ -360,6 +415,7 @@ function App() {
                 placeholder="z. B. Die Grundlagen der objektorientierten Programmierung verstehen …"
                 maxLength={280}
                 rows={4}
+                disabled={pendingClarification !== null || isGenerating}
               />
               <span className="character-count">{task.length}/280</span>
             </div>
@@ -370,7 +426,7 @@ function App() {
             </div>
             <div className="select-wrap">
               <span className="select-icon">◷</span>
-              <select id="time" value={minutes} onChange={(event) => setMinutes(Number(event.target.value))}>
+              <select id="time" value={minutes} disabled={pendingClarification !== null || isGenerating} onChange={(event) => setMinutes(Number(event.target.value))}>
                 {Array.from({ length: 12 }, (_, index) => (index + 1) * 5).map((value) => (
                   <option key={value} value={value}>{value} Minuten</option>
                 ))}
@@ -385,6 +441,7 @@ function App() {
                   <button
                     className={`energy-option ${energy === level ? 'selected' : ''}`}
                     type="button"
+                    disabled={pendingClarification !== null || isGenerating}
                     key={level}
                     aria-pressed={energy === level}
                     onClick={() => setEnergy(level)}
@@ -406,6 +463,7 @@ function App() {
                 id="blocker"
                 className="blocker-select"
                 value={blocker ?? ''}
+                disabled={pendingClarification !== null || isGenerating}
                 onChange={(event) => setBlocker((event.target.value || null) as LearningBlocker | null)}
               >
                 <option value="">Keine Auswahl</option>
@@ -416,10 +474,45 @@ function App() {
               <span className="select-chevron">⌄</span>
             </div>
 
-            <button className="primary-button" type="submit" disabled={!task.trim() || isGenerating}>
-              <span>{isGenerating ? 'Plan wird erstellt …' : hasMission ? 'Mission aktualisieren' : 'Mission planen'}</span>
-              <span className="button-arrow">↗</span>
-            </button>
+            {!pendingClarification && (
+              <button className="primary-button" type="submit" disabled={!task.trim() || isGenerating}>
+                <span>{isGenerating ? 'Plan wird erstellt …' : hasMission ? 'Mission aktualisieren' : 'Mission planen'}</span>
+                <span className="button-arrow">↗</span>
+              </button>
+            )}
+            {pendingClarification && (
+              <section className="clarification-panel" aria-labelledby="clarification-title">
+                <p className="section-kicker">EINE KURZE RÜCKFRAGE</p>
+                <h3 id="clarification-title">{pendingClarification.question}</h3>
+                <label className="field-label" htmlFor="clarification-answer">Deine Antwort <span className="field-hint">optional, max. 120 Zeichen</span></label>
+                <textarea
+                  id="clarification-answer"
+                  value={clarificationAnswer}
+                  onChange={(event) => setClarificationAnswer(event.target.value)}
+                  maxLength={120}
+                  rows={2}
+                  autoFocus
+                  disabled={isGenerating}
+                  placeholder="Ein konkreter Begriff oder Schwerpunkt genügt …"
+                />
+                <div className="clarification-actions">
+                  <button className="primary-button" type="submit" disabled={isGenerating || !clarificationAnswer.trim()}>
+                    <span>{isGenerating ? 'Plan wird erstellt …' : 'Antwort senden'}</span>
+                    <span className="button-arrow">↗</span>
+                  </button>
+                  <button className="clarification-skip" type="submit" data-skip="true" disabled={isGenerating}>
+                    Überspringen
+                  </button>
+                  <button className="clarification-cancel" type="button" disabled={isGenerating} onClick={() => {
+                    setPendingClarification(null)
+                    setClarificationAnswer('')
+                    setGenerationNotice('Rückfrage abgebrochen. Dein aktiver Lernplan und Timer bleiben unverändert.')
+                  }}>
+                    Abbrechen
+                  </button>
+                </div>
+              </section>
+            )}
             {generationNotice && <p className="generation-notice" role="status">{generationNotice}</p>}
             <p className="privacy-note"><span>⌑</span> Dein Lernplan bleibt nur auf diesem Gerät.</p>
           </form>

@@ -1,5 +1,5 @@
 import { validateLearningPlanResponse } from '../../shared/learningPlanSchema.mjs'
-import type { LearningPlan, LearningPlanInput } from '../types/learningPlan'
+import type { LearningPlan, LearningPlanRequest } from '../types/learningPlan'
 import { generateRuleBasedLearningPlan } from './ruleBasedLearningPlan'
 
 export type LearningPlanGenerationResult = {
@@ -10,7 +10,7 @@ export type LearningPlanGenerationResult = {
 }
 
 export async function generateLearningPlanWithStatus(
-  input: LearningPlanInput,
+  input: LearningPlanRequest,
   fetchImpl: typeof fetch = globalThis.fetch,
 ): Promise<LearningPlanGenerationResult> {
   try {

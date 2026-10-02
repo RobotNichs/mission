@@ -1,4 +1,4 @@
-import type { LearningPlan, LearningPlanInput, LearningStepKind } from '../src/types/learningPlan'
+import type { LearningPlan, LearningPlanInput, LearningPlanRequest, LearningStepKind } from '../src/types/learningPlan'
 
 export type AiLearningPlanStep = {
   title: string
@@ -20,6 +20,6 @@ export type LearningPlanApiResponse = {
   plan: LearningPlan
 }
 
-export function validatePlanInput(value: unknown): value is LearningPlanInput
-export function validateAiPlanDraft(value: unknown, input: LearningPlanInput): value is AiLearningPlanDraft
-export function validateLearningPlanResponse(value: unknown, input: LearningPlanInput): value is LearningPlanApiResponse
+export function validatePlanInput(value: unknown): value is LearningPlanRequest
+export function validateAiPlanDraft(value: unknown, input: LearningPlanRequest): value is AiLearningPlanDraft
+export function validateLearningPlanResponse(value: unknown, input: LearningPlanRequest): value is LearningPlanApiResponse

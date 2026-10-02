@@ -8,6 +8,7 @@ import {
   GAMIFICATION_STORAGE_KEY,
 } from './services/gamification'
 import { initialGamificationState } from './types/gamification'
+import type { LearningPlanRequest, LearningStepKind } from './types/learningPlan'
 
 afterEach(cleanup)
 
@@ -32,6 +33,48 @@ function getStepMinutes() {
   return screen.getAllByText(/^\d+ min$/).reduce((total, element) => {
     return total + Number.parseInt(element.textContent ?? '0', 10)
   }, 0)
+}
+
+function mockPlanResponse(
+  input: LearningPlanRequest,
+  clarifyingQuestion: string | null,
+  stepSpecs: Array<{ title: string; kind: LearningStepKind; description: string }>,
+  planId = 'mock-final-plan',
+) {
+  const baseMinutes = Math.floor(input.timeBudgetMinutes / stepSpecs.length)
+  const extraMinutes = input.timeBudgetMinutes % stepSpecs.length
+  return {
+    source: 'mock',
+    clarifyingQuestion,
+    plan: {
+      id: planId,
+      goal: input.goal,
+      timeBudgetMinutes: input.timeBudgetMinutes,
+      energyLevel: input.energyLevel,
+      learningBlocker: input.learningBlocker,
+      steps: stepSpecs.map((step, index) => ({
+        id: `server-${planId}-step-${index}`,
+        ...step,
+        minutes: baseMinutes + (index < extraMinutes ? 1 : 0),
+        done: false,
+      })),
+    },
+  }
+}
+
+function installLearningPlanApiMock(
+  responseFor: (request: LearningPlanRequest, callIndex: number) => unknown,
+) {
+  const requests: LearningPlanRequest[] = []
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+    const request = JSON.parse(String(init?.body)) as LearningPlanRequest
+    requests.push(request)
+    return {
+      ok: true,
+      json: async () => responseFor(request, requests.length),
+    } as Response
+  })
+  return requests
 }
 
 describe('aktiver Lernplan und Formulareingaben', () => {
@@ -93,6 +136,111 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     expect(screen.getAllByRole('checkbox').every((checkbox) => !(checkbox as HTMLInputElement).checked)).toBe(true)
   })
 
+  it('hält aktiven Plan, Häkchen, Timer und XP während einer offenen Rückfrage unverändert', async () => {
+    render(<App />)
+    await createMission('SQL-JOINs üben', 15)
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    const oldMission = JSON.parse(localStorage.getItem('mission.saved-mission.v1') ?? 'null').mission
+    const timerBefore = screen.getByLabelText(/Verbleibende Zeit:/).textContent
+    const xpBefore = JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').xp
+    installLearningPlanApiMock((request) => mockPlanResponse(request, 'Welcher Teil der Mathematik?', [
+      { title: 'Mathematik verstehen', description: 'Arbeite ein konkretes mathematisches Beispiel durch.', kind: 'learning' },
+    ]))
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Was möchtest du lernen?' }), {
+      target: { value: 'Mathematik' },
+    })
+    fireEvent.change(screen.getByLabelText('Wie viel Zeit hast du?'), { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('button', { name: /Mission aktualisieren/ }))
+
+    expect(await screen.findByRole('heading', { name: 'Welcher Teil der Mathematik?' })).toBeTruthy()
+    const savedWhileWaiting = JSON.parse(localStorage.getItem('mission.saved-mission.v1') ?? 'null')
+    expect(savedWhileWaiting.mission.id).toBe(oldMission.id)
+    expect(savedWhileWaiting.mission.goal).toBe(oldMission.goal)
+    expect(savedWhileWaiting.mission.timeBudgetMinutes).toBe(15)
+    expect(savedWhileWaiting.mission.steps[0].done).toBe(true)
+    expect(screen.getByText('15 MIN').textContent).toBe('15 MIN')
+    expect(screen.getByLabelText(/Verbleibende Zeit:/).textContent).toBe(timerBefore)
+    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').xp).toBe(xpBefore)
+    expect((screen.getByLabelText('Wie viel Zeit hast du?') as HTMLSelectElement).disabled).toBe(true)
+  })
+
+  it('übernimmt die Antwort in genau eine finale Anfrage und erstellt passende Schritte', async () => {
+    const requests = installLearningPlanApiMock((request) => request.clarification
+      ? mockPlanResponse(request, null, [
+          { title: 'Bruchgleichungen umformen', description: 'Forme eine Bruchgleichung um und prüfe die Definitionsmenge.', kind: 'practice' },
+        ])
+      : mockPlanResponse(request, 'Welcher Teil der Mathematik?', [
+          { title: 'Mathematik erkunden', description: 'Wähle einen passenden mathematischen Begriff.', kind: 'learning' },
+        ]))
+    render(<App />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Was möchtest du lernen?' }), { target: { value: 'Mathematik' } })
+    fireEvent.click(screen.getByRole('button', { name: /Mission planen/ }))
+    await screen.findByRole('heading', { name: 'Welcher Teil der Mathematik?' })
+    fireEvent.change(screen.getByLabelText(/Deine Antwort/), { target: { value: 'Bruchgleichungen' } })
+    fireEvent.click(screen.getByRole('button', { name: /Antwort senden/ }))
+
+    await waitFor(() => expect(document.querySelector('.summary-copy p')?.textContent).toBe('Mathematik'))
+    expect(requests).toHaveLength(2)
+    expect(requests[1].clarification).toEqual({
+      question: 'Welcher Teil der Mathematik?',
+      answer: 'Bruchgleichungen',
+      skipped: false,
+    })
+    expect(document.querySelector('.steps-list')?.textContent).toContain('Bruchgleichungen')
+    expect(screen.queryByRole('heading', { name: 'Welcher Teil der Mathematik?' })).toBeNull()
+    expect(screen.getByLabelText(/Verbleibende Zeit:/).textContent).toContain('25:00')
+  })
+
+  it('überspringt die Rückfrage explizit und erhält trotzdem einen finalen Plan ohne weitere Frage', async () => {
+    const requests = installLearningPlanApiMock((request) => mockPlanResponse(
+      request,
+      request.clarification ? null : 'Welcher Teil der Mathematik?',
+      [{ title: 'Mathematischen Kern lernen', description: 'Arbeite einen konkreten mathematischen Lehrsatz durch.', kind: 'learning' }],
+    ))
+    render(<App />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Was möchtest du lernen?' }), { target: { value: 'Mathematik' } })
+    fireEvent.click(screen.getByRole('button', { name: /Mission planen/ }))
+    await screen.findByRole('heading', { name: 'Welcher Teil der Mathematik?' })
+    fireEvent.click(screen.getByRole('button', { name: 'Überspringen' }))
+
+    await waitFor(() => expect(document.querySelector('.summary-copy p')?.textContent).toBe('Mathematik'))
+    expect(requests).toHaveLength(2)
+    expect(requests[1].clarification).toEqual({
+      question: 'Welcher Teil der Mathematik?',
+      answer: '',
+      skipped: true,
+    })
+    expect(screen.queryByRole('heading', { name: 'Welcher Teil der Mathematik?' })).toBeNull()
+    expect(screen.getByLabelText(/Verbleibende Zeit:/).textContent).toContain('25:00')
+  })
+
+  it('fällt bei einem Netzwerkfehler nach der Antwort lokal zurück und verwendet den Antwortschwerpunkt', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(async (_url, init) => {
+        const request = JSON.parse(String(init?.body))
+        return {
+          ok: true,
+          json: async () => mockPlanResponse(request, 'Welcher Teil der Mathematik?', [
+            { title: 'Mathematik erkunden', description: 'Lies einen Überblick.', kind: 'learning' },
+          ]),
+        } as Response
+      })
+      .mockRejectedValueOnce(new Error('offline'))
+    render(<App />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Was möchtest du lernen?' }), { target: { value: 'Mathematik' } })
+    fireEvent.click(screen.getByRole('button', { name: /Mission planen/ }))
+    await screen.findByRole('heading', { name: 'Welcher Teil der Mathematik?' })
+    fireEvent.change(screen.getByLabelText(/Deine Antwort/), { target: { value: 'Bruchgleichungen' } })
+    fireEvent.click(screen.getByRole('button', { name: /Antwort senden/ }))
+
+    await waitFor(() => expect(document.querySelector('.summary-copy p')?.textContent).toBe('Mathematik'))
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(document.querySelector('.generation-notice')?.textContent).toContain('lokaler Ersatzplan')
+    expect(document.querySelector('.steps-list')?.textContent).toContain('Bruchgleichungen')
+    expect(screen.queryByRole('heading', { name: 'Welcher Teil der Mathematik?' })).toBeNull()
+  })
+
   it('vergibt XP und Coins nicht erneut, wenn dieselbe aktive Mission aktualisiert oder Schritte erneut abgehakt werden', async () => {
     render(<App />)
     await createMission('Java-Objekte üben', 10)
@@ -135,6 +283,29 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     render(<App />)
     expect(screen.queryByRole('dialog', { name: 'Starker Abschluss.' })).toBeNull()
     expect(JSON.parse(localStorage.getItem('mission.gamification.v1') ?? 'null').xp).toBe(70)
+  })
+
+  it('sperrt bereits belohnte Lernschritte auch bei veränderten IDs und neu formulierten Titeln', async () => {
+    render(<App />)
+    await createMission('Java-Vererbung verstehen', 15)
+    const oldMission = JSON.parse(localStorage.getItem('mission.saved-mission.v1') ?? 'null').mission
+    const rewardedLearningStep = oldMission.steps.find((step: { kind: string }) => step.kind === 'learning')
+    fireEvent.click(screen.getByRole('checkbox', { name: new RegExp(rewardedLearningStep.title) }))
+    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').xp).toBe(10)
+
+    installLearningPlanApiMock((request) => mockPlanResponse(request, null, [
+      { title: 'Vererbungskonzepte abrufen', description: 'Erkläre Vererbung und überschreiben an einem Java-Beispiel.', kind: 'learning' },
+      { title: 'Unterklassen implementieren', description: 'Implementiere eine Unterklasse und teste dynamisches Binden.', kind: 'practice' },
+    ], 'regenerated-plan-id'))
+    fireEvent.click(screen.getByRole('button', { name: /Mission aktualisieren/ }))
+    await screen.findByText('Vererbungskonzepte abrufen')
+
+    const updatedMission = JSON.parse(localStorage.getItem('mission.saved-mission.v1') ?? 'null').mission
+    expect(updatedMission.id).toBe(oldMission.id)
+    expect(updatedMission.steps[0].id).toBe(rewardedLearningStep.id)
+    expect(updatedMission.steps[0].done).toBe(false)
+    fireEvent.click(screen.getByRole('checkbox', { name: /Vererbungskonzepte abrufen/ }))
+    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').xp).toBe(10)
   })
 
   it('bietet alle optionalen Lernblockaden an und speichert die Auswahl im aktiven Plan', async () => {

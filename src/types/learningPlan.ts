@@ -30,6 +30,14 @@ export type LearningPlan = {
 }
 
 export type LearningPlanInput = Omit<LearningPlan, 'id' | 'steps'>
+export type LearningPlanClarification = {
+  question: string
+  answer: string
+  skipped: boolean
+}
+export type LearningPlanRequest = LearningPlanInput & {
+  clarification?: LearningPlanClarification
+}
 export type LearningPlanGenerator = (input: LearningPlanInput) => Promise<LearningPlan>
 
 export function createLearningPlanId(): string {

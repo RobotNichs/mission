@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { generateLearningPlanWithStatus } from './learningPlanApi'
 import type { LearningPlanApiResponse } from '../../shared/learningPlanSchema.mjs'
-import type { LearningPlanInput } from '../types/learningPlan'
+import type { LearningPlanInput, LearningPlanRequest } from '../types/learningPlan'
 
 const input: LearningPlanInput = {
   goal: 'Java-Klassen und Methoden üben',
@@ -65,5 +65,40 @@ describe('Frontend-API-Service', () => {
     expect(httpResult.source).toBe('fallback')
     expect(networkResult.plan.goal).toBe(input.goal)
     expect(httpResult.plan.timeBudgetMinutes).toBe(input.timeBudgetMinutes)
+  })
+
+  it('sendet Follow-up-Antworten an die API und akzeptiert nur einen finalen Plan ohne weitere Frage', async () => {
+    const followup: LearningPlanRequest = {
+      ...input,
+      clarification: { question: 'Welcher Teil von Java?', answer: 'Vererbung', skipped: false },
+    }
+    let sentBody = ''
+    const response = {
+      ...mockResponse,
+      plan: { ...mockResponse.plan, goal: followup.goal, timeBudgetMinutes: followup.timeBudgetMinutes },
+    }
+    const fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+      sentBody = init?.body as string
+      return { ok: true, json: async () => response }
+    }) as unknown as typeof fetch
+
+    const result = await generateLearningPlanWithStatus(followup, fetchImpl)
+
+    expect(JSON.parse(sentBody).clarification).toEqual(followup.clarification)
+    expect(result.source).toBe('mock')
+    expect(result.clarifyingQuestion).toBeNull()
+  })
+
+  it('verwendet bei Follow-up-Netzwerkfehlern den lokalen Fallback mit Antwortkontext', async () => {
+    const followup: LearningPlanRequest = {
+      ...input,
+      clarification: { question: 'Welcher Teil von Java?', answer: 'Vererbung', skipped: false },
+    }
+    const networkFailure = (async () => { throw new Error('network unavailable') }) as typeof fetch
+    const result = await generateLearningPlanWithStatus(followup, networkFailure)
+
+    expect(result.source).toBe('fallback')
+    expect(result.clarifyingQuestion).toBeNull()
+    expect(result.plan.steps.some((step) => step.description.includes('Vererbung'))).toBe(true)
   })
 })

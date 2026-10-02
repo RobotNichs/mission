@@ -1,6 +1,6 @@
 import type {
   LearningPlan,
-  LearningPlanInput,
+  LearningPlanRequest,
   LearningStep,
 } from '../types/learningPlan'
 import { createLearningPlanId } from '../types/learningPlan'
@@ -28,10 +28,13 @@ const blockerGuidance = {
   other: { stepIndex: 0, text: 'Überlege kurz, welche kleine Veränderung dir den Einstieg erleichtern würde.' },
 } as const
 
-export function generateRuleBasedLearningPlan(input: LearningPlanInput): LearningPlan {
+export function generateRuleBasedLearningPlan(input: LearningPlanRequest): LearningPlan {
   const planId = createLearningPlanId()
   const count = Math.min(6, Math.max(2, Math.ceil(input.timeBudgetMinutes / 10)))
   const topic = input.goal.trim().replace(/[.!?]+$/, '')
+  const answerHint = input.clarification && !input.clarification.skipped
+    ? ` Schwerpunkt aus deiner Antwort: „${input.clarification.answer}“.`
+    : ''
   const baseMinutes = Math.floor(input.timeBudgetMinutes / count)
   const extraMinutes = input.timeBudgetMinutes % count
   const guidance = input.learningBlocker ? blockerGuidance[input.learningBlocker] : null
@@ -43,7 +46,7 @@ export function generateRuleBasedLearningPlan(input: LearningPlanInput): Learnin
     return {
       id: `${planId}-step-${index + 1}`,
       title: idea.title,
-      description: `${energyLead[input.energyLevel]}${idea.verb}${blockerHint} Dein Thema: „${topic}“.`,
+      description: `${energyLead[input.energyLevel]}${idea.verb}${blockerHint} Dein Thema: „${topic}“.${answerHint}`,
       minutes: baseMinutes + (index < extraMinutes ? 1 : 0),
       kind: idea.kind,
       done: false,

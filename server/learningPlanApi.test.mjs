@@ -84,6 +84,72 @@ describe('serverseitiger Lernplan-Endpunkt', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
+  it('stellt höchstens eine Rückfrage und erstellt danach mit der Antwort einen finalen Schwerpunktplan', async () => {
+    const fetchImpl = vi.fn()
+    const vagueInput = { ...input, goal: 'Mathematik', learningBlocker: null }
+    const first = await handleLearningPlanRequest(vagueInput, { env: {}, fetchImpl, createId: () => 'draft-plan' })
+    const question = first.body.clarifyingQuestion
+    expect(first.status).toBe(200)
+    expect(question).toContain('Teil')
+    expect((question.match(/\?/g) ?? [])).toHaveLength(1)
+    expect(first.body.plan.steps.reduce((sum, step) => sum + step.minutes, 0)).toBe(vagueInput.timeBudgetMinutes)
+
+    const final = await handleLearningPlanRequest({
+      ...vagueInput,
+      clarification: { question, answer: 'Bruchgleichungen', skipped: false },
+    }, { env: {}, fetchImpl, createId: () => 'final-plan' })
+    expect(final.status).toBe(200)
+    expect(final.body.clarifyingQuestion).toBeNull()
+    expect(final.body.plan.steps.some((step) => step.title.includes('Bruchgleichungen'))).toBe(true)
+    expect(final.body.plan.steps.every((step) => step.description.includes('Bruchgleichungen'))).toBe(true)
+    expect(final.body.plan.steps.reduce((sum, step) => sum + step.minutes, 0)).toBe(vagueInput.timeBudgetMinutes)
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('erstellt nach Überspringen einen finalen Plan und stellt keine weitere Frage', async () => {
+    const vagueInput = { ...input, goal: 'Mathematik', learningBlocker: null }
+    const first = await handleLearningPlanRequest(vagueInput, { env: {} })
+    const result = await handleLearningPlanRequest({
+      ...vagueInput,
+      clarification: { question: first.body.clarifyingQuestion, answer: '', skipped: true },
+    }, { env: {} })
+
+    expect(result.status).toBe(200)
+    expect(result.body.clarifyingQuestion).toBeNull()
+    expect(result.body.plan.steps.every((step) => !step.title.includes('undefined'))).toBe(true)
+    expect(result.body.plan.steps.reduce((sum, step) => sum + step.minutes, 0)).toBe(vagueInput.timeBudgetMinutes)
+  })
+
+  it('weist mehrdeutige oder ungültige Follow-up-Daten zurück', async () => {
+    const base = { ...input, goal: 'Mathematik', learningBlocker: null }
+    const malformedAnswer = await handleLearningPlanRequest({
+      ...base,
+      clarification: { question: 'Welcher Teil?', answer: '', skipped: false },
+    }, { env: {} })
+    const invalidQuestion = await handleLearningPlanRequest({
+      ...base,
+      clarification: { question: 'Welcher Teil? Noch etwas?', answer: 'Brüche', skipped: false },
+    }, { env: {} })
+
+    expect(malformedAnswer.status).toBe(400)
+    expect(invalidQuestion.status).toBe(400)
+  })
+
+  it('erzwingt auch beim Groq-Follow-up eine leere Rückfrage', async () => {
+    const followup = {
+      ...input,
+      clarification: { question: 'Welcher JOIN?', answer: 'INNER JOIN', skipped: false },
+    }
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({ ...validDraft, clarifyingQuestion: 'Noch etwas?' }) } }] }),
+    }))
+    const result = await handleLearningPlanRequest(followup, groqOptions(fetchImpl))
+
+    expect(result.status).toBe(502)
+    expect(result.body.error.code).toBe('invalid_ai_plan')
+  })
+
   it('meldet Netzwerk-, Provider- und Konfigurationsfehler ohne geheime Details', async () => {
     const networkFailure = await handleLearningPlanRequest(input, groqOptions(async () => {
       throw new Error('network down')

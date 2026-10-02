@@ -39,7 +39,7 @@ function isTopicSpecific(goal, topicFocus) {
 
 export function validatePlanInput(value) {
   return isRecord(value)
-    && Object.keys(value).every((key) => ['goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker'].includes(key))
+    && Object.keys(value).every((key) => ['goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'clarification'].includes(key))
     && typeof value.goal === 'string'
     && value.goal.trim().length > 0
     && value.goal.length <= 280
@@ -49,10 +49,21 @@ export function validatePlanInput(value) {
     && value.timeBudgetMinutes % 5 === 0
     && energies.has(value.energyLevel)
     && (value.learningBlocker === null || blockers.has(value.learningBlocker))
+    && (value.clarification === undefined || (
+      hasExactKeys(value.clarification, ['question', 'answer', 'skipped'])
+      && validQuestion(value.clarification.question)
+      && typeof value.clarification.answer === 'string'
+      && value.clarification.answer.length <= 120
+      && typeof value.clarification.skipped === 'boolean'
+      && (value.clarification.skipped
+        ? value.clarification.answer.trim().length === 0
+        : value.clarification.answer.trim().length > 0)
+    ))
 }
 
 export function validateAiPlanDraft(value, input) {
   if (!hasExactKeys(value, ['clarifyingQuestion', 'steps']) || !validQuestion(value.clarifyingQuestion)) return false
+  if (input.clarification && value.clarifyingQuestion !== null) return false
   if (!Array.isArray(value.steps) || value.steps.length < 1 || value.steps.length > 12) return false
 
   let totalMinutes = 0
@@ -62,7 +73,10 @@ export function validateAiPlanDraft(value, input) {
     if (typeof step.title !== 'string' || step.title.trim().length === 0 || step.title.length > 90) return false
     if (typeof step.description !== 'string' || step.description.trim().length === 0 || step.description.length > 600) return false
     if (!Number.isInteger(step.minutes) || step.minutes < 1 || step.minutes > input.timeBudgetMinutes) return false
-    if (!stepKinds.has(step.kind) || !isTopicSpecific(input.goal, step.topicFocus)) return false
+    const topicContext = input.clarification && !input.clarification.skipped
+      ? `${input.goal} ${input.clarification.answer}`
+      : input.goal
+    if (!stepKinds.has(step.kind) || !isTopicSpecific(topicContext, step.topicFocus)) return false
     if (learningKinds.has(step.kind)) hasLearningActivity = true
     totalMinutes += step.minutes
   }
@@ -73,6 +87,7 @@ export function validateAiPlanDraft(value, input) {
 export function validateLearningPlanResponse(value, input) {
   if (!hasExactKeys(value, ['source', 'clarifyingQuestion', 'plan'])) return false
   if (!validSources.has(value.source) || !validQuestion(value.clarifyingQuestion) || !isRecord(value.plan)) return false
+  if (input.clarification && value.clarifyingQuestion !== null) return false
 
   const plan = value.plan
   if (!hasExactKeys(plan, ['id', 'goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'steps'])) return false

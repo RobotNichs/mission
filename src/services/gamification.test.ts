@@ -33,6 +33,15 @@ describe('XP, Mission-Belohnungen und Sammlung', () => {
     expect(repeatedAward.state.xp).toBe(XP_PER_STEP)
   })
 
+  it('sperrt erneut generierte Schritt-IDs über einen stabilen Missions-Slot', () => {
+    const firstPlan = awardStepCompletion(initialGamificationState, 'mission-a', 'server-step-1', 'learning:1')
+    const regeneratedPlan = awardStepCompletion(firstPlan.state, 'mission-a', 'different-server-step-id', 'learning:1')
+
+    expect(firstPlan.xpAdded).toBe(XP_PER_STEP)
+    expect(regeneratedPlan.xpAdded).toBe(0)
+    expect(regeneratedPlan.state.xp).toBe(XP_PER_STEP)
+  })
+
   it('vergibt Mission-XP und Coins nur einmal und rollt genau ein Orb-Design', () => {
     const firstAward = awardMissionCompletion(initialGamificationState, 'mission-a', 0.99)
     const repeatedAward = awardMissionCompletion(firstAward.state, 'mission-a', 0)

@@ -28,6 +28,8 @@ Die `.env` wird von Git ignoriert. Der Browser erhält den Schlüssel nicht; er 
 
 Der Endpunkt `POST /api/learning-plan` prüft Eingaben und Modellantworten gegen ein festes Schema: höchstens eine kurze Rückfrage, mindestens ein Lern- oder Übungsschritt, thematischer Bezug und Schrittzeiten, die exakt das Zeitbudget ergeben. Bei Netzwerk-, Anbieter- oder Schemafehlern zeigt die Oberfläche eine Meldung und erzeugt lokal einen Fallback-Plan. Der lokale Node-Server bindet standardmäßig an `127.0.0.1` und begrenzt API-Anfragen pro IP.
 
+Wenn ein Detail für einen passenden Plan fehlt, zeigt Mission höchstens eine gezielte Rückfrage. Du kannst direkt antworten, überspringen oder abbrechen. Erst nach Antwort oder Überspringen wird der finale Plan aktiv; bis dahin bleiben aktiver Plan und Timer erhalten. Die offene Rückfrage wird nur im Arbeitsspeicher gehalten und nach einem Reload verworfen. Auch der lokale Fallback berücksichtigt eine gegebene Antwort.
+
 ## Funktionen
 
 - Lernziel und Zeitbudget von 5 bis 60 Minuten eingeben
