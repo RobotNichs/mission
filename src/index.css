@@ -441,3 +441,55 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-
 
 .mission-writer-surface { min-width: 0; margin: 0; padding: 0; border: 0; }
 .writer-notice { margin: 12px auto; width: min(1136px, calc(100% - 32px)); color: var(--ink); font-size: 13px; line-height: 1.5; }
+
+/* Shared procedural orb art: collection, equipped core and crate result. */
+.orb-art { position: relative; display: inline-block; isolation: isolate; flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; }
+.orb-surface { position: absolute; inset: 5%; overflow: hidden; border: 1px solid color-mix(in srgb, var(--orb-light), transparent 55%); border-radius: 50%; background: radial-gradient(ellipse at 28% 20%, #ffffffdd, transparent 23%), radial-gradient(circle at 35% 30%, var(--orb-light), var(--orb-mid) 48%, var(--orb-dark) 88%); box-shadow: inset -6px -8px 14px #06091980, inset 2px 2px 8px #ffffff30, 0 0 16px color-mix(in srgb, var(--orb-mid), transparent 75%); }
+.orb-surface::after { position: absolute; inset: 0; border-radius: inherit; content: ''; opacity: .55; }
+.material-pearl .orb-surface { background: radial-gradient(ellipse at 30% 22%, #fff, transparent 32%), conic-gradient(from 35deg, var(--orb-light), var(--orb-mid), var(--orb-dark), var(--orb-mid), var(--orb-light)); }
+.material-metal .orb-surface { background: linear-gradient(125deg, var(--orb-dark), var(--orb-mid) 22%, var(--orb-light) 36%, var(--orb-dark) 46%, var(--orb-mid) 68%, var(--orb-light) 76%, var(--orb-dark)); }
+.material-crystal .orb-surface::after { background: conic-gradient(from 20deg, #ffffff70, transparent 18%, #ffffff50 29%, transparent 46%, #00000070 58%, transparent 74%, #ffffff70); }
+.material-nebula .orb-surface { background: radial-gradient(ellipse at 65% 30%, var(--orb-light), transparent 38%), radial-gradient(ellipse at 28% 65%, var(--orb-mid), transparent 50%), radial-gradient(circle, var(--orb-mid), var(--orb-dark)); }
+.pattern-bands .orb-surface::after { background: repeating-linear-gradient(145deg, transparent 0 10%, #ffffff50 11% 13%, transparent 14% 21%); }
+.pattern-vortex .orb-surface::after { background: repeating-conic-gradient(from 30deg, transparent 0deg 35deg, #ffffff60 40deg, transparent 65deg); }
+.orb-detail { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.orb-lines { fill: none; stroke: var(--orb-light); stroke-width: 1; opacity: .6; }
+.orb-stars { fill: #fff5d9; filter: drop-shadow(0 0 2px var(--orb-light)); }
+.orb-ring { fill: none; stroke: var(--orb-light); stroke-width: 1.5; opacity: .75; filter: drop-shadow(0 0 3px var(--orb-mid)); }
+.is-animated .orb-detail { animation: orb-drift 24s linear infinite; transform-origin: center; }
+.is-animated.pattern-vortex .orb-surface::after { animation: orb-drift 36s linear infinite; }
+.is-animated.pattern-halo .orb-surface { animation: orb-glimmer 6s ease-in-out infinite; }
+@keyframes orb-drift { to { transform: rotate(360deg); } }
+@keyframes orb-glimmer { 50% { filter: brightness(1.15); } }
+.mission-core { background: transparent; }
+.mission-core .core-orb-art { position: absolute; inset: 0; width: 100%; height: 100%; }
+.core-center { z-index: 1; }
+.gamification-panel { grid-template-columns: 100px minmax(0, 1fr); }
+.collection-column { grid-column: 1 / -1; padding: 19px 0 0; border-left: 0; border-top: 1px solid var(--line); }
+.orb-collection { grid-template-columns: repeat(auto-fit, minmax(95px, 1fr)); gap: 10px; max-height: 350px; overflow-y: auto; overscroll-behavior: contain; padding: 3px; scrollbar-color: #625889 #111b2a; }
+.orb-collection:focus-visible { outline: 2px solid #67e8f9; outline-offset: 3px; }
+.orb-card { width: 100%; min-height: 106px; gap: 7px; padding: 12px 6px; }
+.orb-name { font-size: 10px; }
+.orb-rarity { font-size: 9px; }
+.is-locked .orb-art { filter: grayscale(1); opacity: .3; }
+.crate-chances { margin: 15px 0 0; color: #b6c6dd; font-size: 12px; line-height: 1.7; }
+.crate-buy { min-height: 44px; padding: 0 18px; font-size: 12px; }
+.crate-dialog { text-align: center; }
+.crate-result { display: flex; align-items: center; flex-direction: column; gap: 12px; padding: 18px 0; }
+.crate-result .orb-art { width: 144px; height: 144px; }
+.crate-result strong { color: #a9eee8; font-size: 15px; }
+.crate-result > span:last-child { color: #c6b4f6; font-size: 12px; }
+.crate-opening { display: grid; place-items: center; height: 190px; }
+.crate-opening > span { display: grid; place-items: center; width: 110px; height: 110px; border: 1px solid #a992ef; border-radius: 24px; color: #ddccff; background: radial-gradient(circle, #504574, #20243c); font-size: 45px; box-shadow: 0 0 45px #9b7ee633; animation: crate-reveal .9s ease-out both; }
+@keyframes crate-reveal { 0% { transform: scale(.8) rotate(-8deg); opacity: .5; } 60% { transform: scale(1.05) rotate(4deg); } 100% { transform: scale(1); opacity: 1; } }
+@media (max-width: 520px) {
+  .gamification-panel { grid-template-columns: 76px minmax(0, 1fr); }
+  .orb-collection { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+  .orb-name { white-space: normal; }
+  .crate-shop .shop-heading { align-items: stretch; flex-direction: column; gap: 14px; }
+  .crate-dialog .shop-confirm-actions { flex-direction: column; }
+  .crate-dialog .shop-confirm-actions button { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb-art *, .orb-art *::after, .crate-opening > span { animation: none !important; transition: none !important; }
+}

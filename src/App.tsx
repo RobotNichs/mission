@@ -1,16 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
-import CoinShop from './components/CoinShop'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import OrbCrateShop from './components/OrbCrateShop'
 import GamificationPanel from './components/GamificationPanel'
 import MissionRewardDialog from './components/MissionRewardDialog'
 import {
   recordMissionCompletion,
   addFocusTime,
   recordStepCompletion,
-  equipCosmetic,
   equipOrb,
   GAMIFICATION_STORAGE_KEY,
   loadGamificationState,
-  purchaseCosmetic,
+  purchaseOrbCrate,
+  type CratePurchaseResult,
 } from './services/gamification'
 import { generateLearningPlanWithStatus } from './services/learningPlanGenerator'
 import {
@@ -28,6 +28,10 @@ import {
 import { acquireMissionWriter, advanceFocusSession, type FocusSession } from './services/focusTimer'
 import type { GamificationState } from './types/gamification'
 import { getStableStepRewardSlot, preserveStepProgress } from './services/learningPlanProgress'
+import { isLocalDevelopment } from './services/developmentMode'
+
+// Vite removes the dynamic import and its entire module from production builds.
+const GamificationDebug = import.meta.env.DEV ? lazy(() => import('./components/GamificationDebug')) : null
 
 type FormSettings = LearningPlanInput
 type SavedAppState = { form: FormSettings; mission: LearningPlan | null; remainingSeconds: number }
@@ -389,11 +393,12 @@ function App() {
     setRewardNotice('Level und Coins wachsen ausschließlich durch laufende Fokuszeit.')
   }
 
-  function handleCosmeticPurchase(itemId: string) {
-    if (!writer.current) return 'insufficient-funds' as const
-    const result = purchaseCosmetic(game.current, itemId)
-    commitGamification(result.state)
-    return result.status
+  function handleCratePurchase(purchaseId: string): CratePurchaseResult {
+    const unavailable: CratePurchaseResult = { state: game.current, status: 'unavailable', orb: null, duplicate: false }
+    if (!writer.current) return unavailable
+    const result = purchaseOrbCrate(game.current, purchaseId, Math.random(), Math.random())
+    if (result.status !== 'purchased') return result
+    try { commitGamification(result.state); return result } catch { failStorage(); return unavailable }
   }
 
   function toggleTimer() {
@@ -441,11 +446,15 @@ function App() {
         onEquipOrb={(orbId) => { if (writer.current) commitGamification(equipOrb(game.current, orbId)) }}
       />
 
-      <CoinShop
-        state={gamification}
-        onPurchase={handleCosmeticPurchase}
-        onEquip={(itemId) => { if (writer.current) commitGamification(equipCosmetic(game.current, itemId)) }}
-      />
+      <OrbCrateShop state={gamification} enabled={canWrite} onPurchase={handleCratePurchase} />
+      {import.meta.env.DEV && GamificationDebug && isLocalDevelopment(import.meta.env.DEV, window.location.hostname) && (
+        <Suspense fallback={null}>
+          <GamificationDebug state={gamification} enabled={canWrite} onChange={(transform) => {
+            if (!writer.current || !isLocalDevelopment(import.meta.env.DEV, window.location.hostname)) return false
+            try { commitGamification(transform(game.current)); return true } catch { failStorage(); return false }
+          }} />
+        </Suspense>
+      )}
 
       <div className="workspace-grid">
         <section className="panel setup-panel" aria-labelledby="setup-heading">

@@ -5,6 +5,13 @@ export type OrbDefinition = {
   name: string
   rarity: OrbRarity
   description: string
+  visual: {
+    colors: [string, string, string]
+    material: 'glass' | 'pearl' | 'metal' | 'crystal' | 'nebula'
+    pattern: 'none' | 'bands' | 'facets' | 'stars' | 'vortex' | 'halo' | 'petals'
+    ring: boolean
+    animated: boolean
+  }
 }
 
 export type CosmeticKind = 'background' | 'core-effect'
@@ -23,6 +30,7 @@ export type GamificationState = {
   totalFocusMilliseconds: number
   coins: number
   ownedOrbIds: string[]
+  completedCratePurchaseIds: string[]
   claimedStepRewardKeys: string[]
   claimedMissionIds: string[]
   equippedOrbId: string | null
@@ -37,6 +45,7 @@ export const initialGamificationState: GamificationState = {
   totalFocusMilliseconds: 0,
   coins: 0,
   ownedOrbIds: [],
+  completedCratePurchaseIds: [],
   claimedStepRewardKeys: [],
   claimedMissionIds: [],
   equippedOrbId: null,

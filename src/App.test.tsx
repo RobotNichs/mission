@@ -348,38 +348,35 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     expect((screen.getByRole('button', { name: 'Ausrüsten: Morgenlicht' }) as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('verlangt Kaufbestätigung, zieht Coins einmalig ab und speichert ausgerüstete Kosmetik', () => {
+  it('bestätigt Kistenkäufe und erhält alte Kosmetik samt aktivem Design nach Reload', () => {
     const item = cosmeticShopItems.find((candidate) => candidate.kind === 'background')!
     const coreEffect = cosmeticShopItems.find((candidate) => candidate.kind === 'core-effect')!
+    vi.spyOn(Math, 'random').mockReturnValue(0)
     localStorage.setItem(GAMIFICATION_STORAGE_KEY, JSON.stringify({
-      ...initialGamificationState,
-      coins: item.cost + coreEffect.cost + 5,
+      ...initialGamificationState, coins: 60, ownedCosmeticIds: [item.id, coreEffect.id],
+      selectedBackgroundId: item.id, selectedCoreEffectId: coreEffect.id,
     }))
     render(<App />)
-
-    fireEvent.click(screen.getByRole('button', { name: `Kaufen ${item.name} für ${item.cost} Coins` }))
-    expect(screen.getByRole('alertdialog', { name: item.name })).toBeTruthy()
-    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').coins).toBe(item.cost + coreEffect.cost + 5)
-
-    fireEvent.click(screen.getByRole('button', { name: `Für ${item.cost} Coins kaufen` }))
-    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').coins).toBe(coreEffect.cost + 5)
-    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').ownedCosmeticIds).toContain(item.id)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Anwenden' }))
-    expect(document.querySelector('.app-shell')?.classList.contains(`theme-${item.id}`)).toBe(true)
-    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').selectedBackgroundId).toBe(item.id)
-
-    fireEvent.click(screen.getByRole('button', { name: `Kaufen ${coreEffect.name} für ${coreEffect.cost} Coins` }))
-    fireEvent.click(screen.getByRole('button', { name: `Für ${coreEffect.cost} Coins kaufen` }))
-    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').coins).toBe(5)
-    fireEvent.click(screen.getByRole('button', { name: 'Anwenden' }))
-    expect(document.querySelector('.mission-core')?.classList.contains(`core-effect-${coreEffect.id}`)).toBe(true)
-
+    expect(screen.queryByRole('heading', { name: 'Coin-Shop' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Kiste kaufen · 30 Coins' }))
+    expect(screen.getByRole('alertdialog', { name: 'Orb-Kiste kaufen?' })).toBeTruthy()
+    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY)!).coins).toBe(60)
+    fireEvent.click(screen.getByRole('button', { name: 'Für 30 Coins kaufen und öffnen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Animation überspringen' }))
+    expect(screen.getByRole('dialog', { name: 'Morgenlicht' }).textContent).toContain('Neu freigeschaltet')
+    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY)!).coins).toBe(30)
+    fireEvent.click(screen.getByRole('button', { name: 'Schließen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ausrüsten: Morgenlicht' }))
     cleanup()
     render(<App />)
-    expect(document.querySelector('.app-shell')?.classList.contains(`theme-${item.id}`)).toBe(true)
-    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').selectedCoreEffectId).toBe(coreEffect.id)
-    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').selectedBackgroundId).not.toBe(DEFAULT_BACKGROUND_ID)
+    const saved = JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY)!)
+    expect(saved.coins).toBe(30)
+    expect(saved.ownedCosmeticIds).toEqual([item.id, coreEffect.id])
+    expect(saved.equippedOrbId).toBe('orb-common')
+    expect(saved.selectedBackgroundId).not.toBe(DEFAULT_BACKGROUND_ID)
+    expect(document.querySelector('.app-shell')?.classList.contains('theme-' + item.id)).toBe(true)
+    expect(document.querySelector('.mission-core')?.classList.contains('core-effect-' + coreEffect.id)).toBe(true)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('erhält vorhandene Orbs beim Abschluss ohne neuen Drop oder Coins', async () => {

@@ -6,6 +6,9 @@ import {
   type OrbRarity,
 } from '../types/gamification'
 
+import { orbCollection } from './orbCatalog'
+export { orbCollection } from './orbCatalog'
+
 export const GAMIFICATION_STORAGE_KEY = 'mission.gamification.v1'
 export const DEFAULT_BACKGROUND_ID = 'deep-space'
 export const DEFAULT_CORE_EFFECT_ID = 'core-soft'
@@ -16,13 +19,6 @@ export const rarityProbabilities: Record<OrbRarity, number> = {
   epic: 0.12,
   legendary: 0.03,
 }
-
-export const orbCollection: OrbDefinition[] = [
-  { id: 'orb-common', name: 'Morgenlicht', rarity: 'common', description: 'Ein ruhiger, heller Kern.' },
-  { id: 'orb-rare', name: 'Nordlicht', rarity: 'rare', description: 'Ein kühler, schimmernder Kern.' },
-  { id: 'orb-epic', name: 'Nebelrose', rarity: 'epic', description: 'Ein lebendiger, violetter Kern.' },
-  { id: 'orb-legendary', name: 'Sternenstaub', rarity: 'legendary', description: 'Ein seltener, goldener Kern.' },
-]
 
 export const cosmeticShopItems: CosmeticItem[] = [
   { id: 'background-violet-dusk', name: 'Violetter Abend', kind: 'background', cost: 45, description: 'Ein dunkler Verlauf mit sanftem Violett.' },
@@ -68,8 +64,9 @@ export function recordMissionCompletion(state: GamificationState, missionId: str
   return { ...state, claimedMissionIds: [...state.claimedMissionIds, missionId] }
 }
 
-export function rollOrb(randomRoll: number): OrbDefinition {
-  const roll = Math.min(Math.max(randomRoll, 0), 0.999999999999)
+export function rollOrb(randomRoll: number, itemRoll = 0): OrbDefinition {
+  const normalizeRoll = (value: number) => Number.isFinite(value) ? Math.min(Math.max(value, 0), 0.999999999999) : 0
+  const roll = normalizeRoll(randomRoll)
   const rarity: OrbRarity = roll < rarityProbabilities.common
     ? 'common'
     : roll < rarityProbabilities.common + rarityProbabilities.rare
@@ -77,7 +74,8 @@ export function rollOrb(randomRoll: number): OrbDefinition {
       : roll < rarityProbabilities.common + rarityProbabilities.rare + rarityProbabilities.epic
         ? 'epic'
         : 'legendary'
-  return orbCollection.find((orb) => orb.rarity === rarity)!
+  const pool = orbCollection.filter((orb) => orb.rarity === rarity)
+  return pool[Math.floor(normalizeRoll(itemRoll) * pool.length)]
 }
 
 export function equipOrb(state: GamificationState, orbId: string | null): GamificationState {
@@ -85,6 +83,35 @@ export function equipOrb(state: GamificationState, orbId: string | null): Gamifi
     return state
   }
   return { ...state, equippedOrbId: orbId }
+}
+
+export const ORB_CRATE_COST = 30
+export type CratePurchaseResult = {
+  state: GamificationState
+  status: 'purchased' | 'already-processed' | 'insufficient-funds' | 'invalid-purchase' | 'unavailable'
+  orb: OrbDefinition | null
+  duplicate: boolean
+}
+
+export function purchaseOrbCrate(
+  state: GamificationState, purchaseId: string, rarityRoll: number, itemRoll: number,
+): CratePurchaseResult {
+  const rejected = (status: CratePurchaseResult['status']): CratePurchaseResult => ({ state, status, orb: null, duplicate: false })
+  if (!purchaseId.trim() || purchaseId.length > 200) return rejected('invalid-purchase')
+  if (state.completedCratePurchaseIds.includes(purchaseId)) return rejected('already-processed')
+  if (!Number.isFinite(state.coins) || state.coins < ORB_CRATE_COST) return rejected('insufficient-funds')
+  if (![rarityRoll, itemRoll].every((roll) => Number.isFinite(roll) && roll >= 0 && roll < 1)) return rejected('invalid-purchase')
+  const orb = rollOrb(rarityRoll, itemRoll)
+  const duplicate = state.ownedOrbIds.includes(orb.id)
+  return {
+    state: {
+      ...state,
+      coins: state.coins - ORB_CRATE_COST,
+      ownedOrbIds: duplicate ? state.ownedOrbIds : [...state.ownedOrbIds, orb.id],
+      completedCratePurchaseIds: [...state.completedCratePurchaseIds, purchaseId],
+    },
+    status: 'purchased', orb, duplicate,
+  }
 }
 
 export function purchaseCosmetic(state: GamificationState, itemId: string): CosmeticPurchaseResult {
@@ -150,6 +177,7 @@ export function loadGamificationState(strictStorage = false): GamificationState 
       totalFocusMilliseconds: Math.floor(nonnegative(value.totalFocusMilliseconds)),
       coins: nonnegative(value.coins),
       ownedOrbIds,
+      completedCratePurchaseIds: strings(value.completedCratePurchaseIds),
       claimedStepRewardKeys: strings(value.claimedStepRewardKeys),
       claimedMissionIds: strings(value.claimedMissionIds),
       equippedOrbId: typeof value.equippedOrbId === 'string' && ownedOrbIds.includes(value.equippedOrbId)
