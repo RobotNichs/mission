@@ -1,4 +1,5 @@
 import LearningHistory from './components/LearningHistory'
+import OrbCollectionDialog from './components/OrbCollectionDialog'
 import { normalizeHistory, normalizeActiveSession, finishLearningSession, type SessionHistoryEntry, type ActiveLearningSession } from './services/learningHistory'
 import PlanEditor from './components/PlanEditor'
 import { applyPlanTiming } from './services/planEditor'
@@ -13,6 +14,7 @@ import {
   addFocusTime,
   recordStepCompletion,
   equipOrb,
+  getLevel,
   GAMIFICATION_STORAGE_KEY,
   loadGamificationState,
   purchaseOrbCrate,
@@ -186,6 +188,7 @@ function formatTime(totalSeconds: number) {
 }
 
 function App() {
+  const [collectionOpen, setCollectionOpen] = useState(false)
   const [saved] = useState(readSavedMission)
   const [history, setHistory] = useState(saved?.history ?? [])
   const [hasActiveSession, setHasActiveSession] = useState(Boolean(saved?.activeSession))
@@ -546,6 +549,7 @@ function App() {
   if (isFocusMode) return (
     <>
       <FocusMode mission={mission} orb={orbCollection.find((orb) => orb.id === gamification.equippedOrbId) ?? defaultOrb}
+        level={getLevel(gamification.totalFocusMilliseconds / 60000)}
         countdown={formatTime(mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)} stopwatch={mission?.timeMode === 'stopwatch'} isRunning={isRunning} finished={mission?.timeMode !== 'stopwatch' && remainingSeconds === 0}
         enabled={canWrite} error={storageError} onToggleTimer={toggleTimer} onResetTimer={resetTimer}
         onEditPlan={mission ? () => { setEditingPlan(mission); setIsFocusMode(false) } : undefined}
@@ -583,10 +587,11 @@ function App() {
       <GamificationPanel
         state={gamification}
         rewardNotice={rewardNotice}
-        onEquipOrb={(orbId) => { if (writer.current) commitGamification(equipOrb(game.current, orbId)) }}
       />
 
-      <OrbCrateShop state={gamification} enabled={canWrite} onPurchase={handleCratePurchase} />
+      <OrbCrateShop state={gamification} enabled={canWrite} onPurchase={handleCratePurchase} onOpenCollection={() => setCollectionOpen(true)} />
+      {collectionOpen && <OrbCollectionDialog state={gamification} enabled={canWrite} onClose={() => setCollectionOpen(false)}
+        onEquipOrb={id => { if (writer.current) commitGamification(equipOrb(game.current, id)) }} />}
       {import.meta.env.DEV && GamificationDebug && isLocalDevelopment(import.meta.env.DEV, window.location.hostname) && (
         <Suspense fallback={null}>
           <GamificationDebug state={gamification} enabled={canWrite} onChange={(transform) => {

@@ -4,9 +4,9 @@ import { rarityLabels } from '../services/orbCatalog'
 import type { GamificationState } from '../types/gamification'
 import OrbVisual from './OrbVisual'
 
-type Props = { state: GamificationState; enabled: boolean; onPurchase: (purchaseId: string) => CratePurchaseResult }
+type Props = { state: GamificationState; enabled: boolean; onPurchase: (purchaseId: string) => CratePurchaseResult; onOpenCollection: () => void }
 
-export default function OrbCrateShop({ state, enabled, onPurchase }: Props) {
+export default function OrbCrateShop({ state, enabled, onPurchase, onOpenCollection }: Props) {
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [result, setResult] = useState<CratePurchaseResult | null>(null)
   const [revealed, setRevealed] = useState(false)
@@ -58,8 +58,11 @@ export default function OrbCrateShop({ state, enabled, onPurchase }: Props) {
       <div className="shop-heading">
         <div><p className="section-kicker">DEIN NÄCHSTER FUND</p><h2 id="crate-shop-title">Orb-Kiste</h2>
           <p className="shop-description">Ein zufälliger Orb. Dein eigener Look. Nur mit Fokus-Coins.</p></div>
+        <div className="crate-heading-actions">
+        <button className="focus-leave" type="button" disabled={modalOpen} onClick={onOpenCollection}>Sammlung</button>
         <button ref={trigger} className="shop-action crate-buy" type="button" disabled={!enabled || state.coins < ORB_CRATE_COST || modalOpen}
           onClick={() => { consumed.current = null; setPendingId(crypto.randomUUID()) }}>Kiste kaufen · 30 Coins</button>
+        </div>
       </div>
       <p className="crate-chances">Gewöhnlich 60 % · Selten 25 % · Episch 12 % · Legendär 3 %</p>
       <p className="shop-notice" aria-live="polite">{notice ?? 'Jede Kiste enthält genau einen Orb. Duplikate geben keine Coins. Keine Echtgeldkäufe.'}</p>

@@ -2,12 +2,14 @@ import { useEffect, useRef } from 'react'
 import type { LearningPlan } from '../types/learningPlan'
 import type { OrbDefinition } from '../types/gamification'
 import OrbVisual from './OrbVisual'
+import { getOrbSize } from '../services/orbSize'
 
 type Props = {
   mission: LearningPlan | null
   orb: OrbDefinition
   countdown: string
   stopwatch?: boolean
+  level?: number
   isRunning: boolean
   finished: boolean
   enabled: boolean
@@ -21,7 +23,7 @@ type Props = {
   onCompleteSession?: () => void
 }
 
-export default function FocusMode({ mission, orb, countdown, stopwatch, isRunning, finished, enabled, error,
+export default function FocusMode({ mission, orb, countdown, stopwatch, level = 1, isRunning, finished, enabled, error,
   onToggleTimer, onResetTimer, onToggleStep, onLeave, onEditPlan, onEndSession, onCompleteSession }: Props) {
   const heading = useRef<HTMLHeadingElement>(null)
   const leave = useRef(onLeave)
@@ -47,7 +49,7 @@ export default function FocusMode({ mission, orb, countdown, stopwatch, isRunnin
       {error && <p className="writer-notice" role="alert">{error}</p>}
       <section className="focus-session" aria-labelledby="focus-title">
         <h1 id="focus-title" className="focus-title" ref={heading} tabIndex={-1}>Ein Moment für deinen Fokus.</h1>
-        <div className={`focus-orb-stage ${isRunning ? 'is-running' : ''} ${finished ? 'is-finished' : ''}`}>
+        <div className={`focus-orb-stage ${isRunning ? 'is-running' : ''} ${finished ? 'is-finished' : ''}`} style={{ width: `min(${getOrbSize(level, 'focus')}px, 78vw, 100%)` }}>
           <OrbVisual orb={orb} className="focus-orb" label={orb.name} />
           <div className="focus-countdown" role="timer" aria-label={`${stopwatch ? 'Vergangene' : 'Verbleibende'} Zeit: ${countdown}`}>
             <strong>{countdown}</strong><span>MIN : SEK</span>

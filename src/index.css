@@ -547,3 +547,32 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-
 .learning-history ol { list-style: none; padding: 0; }
 .learning-history li { display: grid; gap: .3rem; padding: .8rem 0; border-bottom: 1px solid #34404a; overflow-wrap: anywhere; }
 .learning-history time, .learning-history li span { color: #aabbbd; font-size: .85rem; }
+.gamification-panel { grid-template-columns: minmax(76px, 138px) minmax(0, 1fr); }
+.mission-core { height: auto; max-width: 100%; }
+.collection-dialog { width: min(620px, calc(100vw - 32px)); max-height: calc(100svh - 32px); overflow-y: auto; }
+.collection-dialog > h2 { color: #eaf0fa; font-size: 20px; }
+.collection-dialog fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.collection-dialog .collection-column { border: 0; padding: 0; }
+.collection-dialog .orb-collection { max-height: none; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
+.shop-heading { flex-wrap: wrap; }
+.focus-controls { flex-wrap: wrap; justify-content: center; }
+@media (max-width: 520px) {
+  .gamification-panel { grid-template-columns: minmax(60px, 100px) minmax(0, 1fr); }
+  .collection-dialog .orb-collection { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { .mission-core { transition: none; animation: none; } }
+.crate-heading-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+.collection-dialog { display: flex; flex-direction: column; max-height: min(680px, calc(100svh - 32px)); overflow: hidden; }
+.collection-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; padding-bottom: 12px; }
+.collection-dialog-header h2 { margin: 0; color: #eaf0fa; font-size: 20px; }
+.collection-dialog-header button { flex-shrink: 0; }
+.collection-dialog-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.debug-level-preview { display: grid; justify-items: start; gap: 12px; margin: 18px 0; }
+.debug-level-preview input { width: min(360px, 100%); }
+.debug-preview-orb { justify-self: center; }
+@media (max-width: 520px) {
+  .crate-heading-actions { width: 100%; justify-content: flex-start; }
+  .collection-dialog-header { align-items: flex-start; }
+  .collection-dialog-header h2 { font-size: 16px; }
+  .collection-dialog-header button { padding: 8px; font-size: 10px; }
+}

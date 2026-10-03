@@ -339,6 +339,7 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     }))
     render(<App />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'Sammlung' }))
     fireEvent.click(screen.getByRole('button', { name: 'Ausrüsten: Morgenlicht' }))
     expect(document.querySelector('.mission-core')?.classList.contains('core-orb-common')).toBe(true)
     expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').equippedOrbId).toBe('orb-common')
@@ -346,6 +347,7 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     cleanup()
     render(<App />)
     expect(document.querySelector('.mission-core')?.classList.contains('core-orb-common')).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Sammlung' }))
     expect((screen.getByRole('button', { name: 'Ausrüsten: Morgenlicht' }) as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true')
   })
 
@@ -367,6 +369,7 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     expect(screen.getByRole('dialog', { name: 'Morgenlicht' }).textContent).toContain('Neu freigeschaltet')
     expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY)!).coins).toBe(30)
     fireEvent.click(screen.getByRole('button', { name: 'Schließen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sammlung' }))
     fireEvent.click(screen.getByRole('button', { name: 'Ausrüsten: Morgenlicht' }))
     cleanup()
     render(<App />)
