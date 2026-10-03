@@ -53,7 +53,7 @@ describe('serverseitiger Lernplan-Endpunkt', () => {
     ['Zeitbudget stimmt nicht', { ...validDraft, steps: validDraft.steps.map((step) => ({ ...step, minutes: 5 })) }],
     ['Lernaktivität fehlt', { ...validDraft, steps: validDraft.steps.map((step) => ({ ...step, kind: 'preparation' })) }],
     ['mehr als eine Rückfrage', { ...validDraft, clarifyingQuestion: 'Welcher Teil? Und welches Beispiel?' }],
-    ['Fachbezug fehlt', { ...validDraft, steps: validDraft.steps.map((step) => ({ ...step, topicFocus: 'Astronomie' })) }],
+    ['Fachbezug fehlt', { ...validDraft, steps: validDraft.steps.map((step) => ({ ...step, title: 'Sterne beobachten', description: 'Bestimme ein Sternbild am Nachthimmel.', topicFocus: 'Astronomie' })) }],
   ])('weist eine ungültige KI-Antwort zurück: %s', async (_description, draft) => {
     const fetchImpl = vi.fn(async () => ({
       ok: true,

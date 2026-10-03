@@ -31,10 +31,15 @@ function words(value) {
     .match(/[a-z0-9]+/g) ?? [])
 }
 
-function isTopicSpecific(goal, topicFocus) {
+// This is an explicit text reference, not a semantic or factual correctness check.
+// Ignore organisational words so that "lernen" alone cannot validate any topic.
+const genericTopicWords = new Set(words('ich du wir sie er es ihr mir mich dich uns mein meine meinen dein deine ein eine einer eines einem einen der die das den dem des und oder aber auch mit ohne von vom zum zur zu im in am an auf aus fur als bei nach vor uber ist sind sein habe hat haben mochte mochten will wollen soll sollen kann konnen lernen lerne lernziel lernplan thema themen grundlagen grundlage machen mache verstehen uben ubung aufgabe aufgaben beispiel beispiele schritt schritte teil bereich unterlagen vorhandenen vorhandene bitte heute jetzt zuerst the a an and or to of learn learning study do'))
+
+function isTopicSpecific(goal, topicFocus, title, description) {
   if (typeof topicFocus !== 'string' || topicFocus.trim().length === 0 || topicFocus.length > 120) return false
-  const goalWords = words(goal)
-  return [...words(topicFocus)].some((word) => goalWords.has(word))
+  const goalWords = new Set([...words(goal)].filter(word => !genericTopicWords.has(word) && /[a-z]/.test(word)))
+  const stepWords = words(`${topicFocus} ${title} ${description}`)
+  return [...goalWords].some(word => stepWords.has(word))
 }
 
 export function validatePlanInput(value) {
@@ -78,7 +83,7 @@ export function diagnoseAiPlanDraft(value, input) {
       ? `${input.goal} ${input.clarification.answer}`
       : input.goal
     if (!stepKinds.has(step.kind)) return 'invalid_step_type'
-    if (!isTopicSpecific(topicContext, step.topicFocus)) return 'topic_reference_missing'
+    if (!isTopicSpecific(topicContext, step.topicFocus, step.title, step.description)) return 'topic_reference_missing'
     if (learningKinds.has(step.kind)) hasLearningActivity = true
     totalMinutes += step.minutes
   }
