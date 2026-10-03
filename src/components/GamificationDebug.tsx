@@ -26,7 +26,7 @@ export default function GamificationDebug({ state, enabled, onChange }: Props) {
   }
 
   return (
-    <details className="coin-shop panel">
+    <details className="coin-shop panel gamification-debug">
       <summary>Lokaler Gamification-Testmodus</summary>
       <p className="shop-description">Nur für lokale Entwicklung. Testwerte werden auf diesem Gerät gespeichert; vorhandene Daten bleiben erhalten. Keine Fokuszeit und keine Level durch diese Aktionen.</p>
       <section className="debug-level-preview" aria-label="Visuelle Level-Vorschau">

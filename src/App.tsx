@@ -577,29 +577,12 @@ function App() {
 
       <section className="intro" id="start">
         <div>
-          <p className="eyebrow"><span className="eyebrow-star">✳</span> DEIN FOKUS-RAUM</p>
+          <p className="eyebrow">MISSION CONTROL / DEIN FOKUS-RAUM</p>
           <h1>Heute kommst du <span>weiter.</span></h1>
           <p className="intro-copy">Ein Ziel. Kleine Schritte. Ein gutes Gefühl am Ende.</p>
         </div>
         <div className="date-chip"><span className="date-sun">☼</span><span>Deine nächste Lernsession</span></div>
       </section>
-
-      <GamificationPanel
-        state={gamification}
-        rewardNotice={rewardNotice}
-      />
-
-      <OrbCrateShop state={gamification} enabled={canWrite} onPurchase={handleCratePurchase} onOpenCollection={() => setCollectionOpen(true)} />
-      {collectionOpen && <OrbCollectionDialog state={gamification} enabled={canWrite} onClose={() => setCollectionOpen(false)}
-        onEquipOrb={id => { if (writer.current) commitGamification(equipOrb(game.current, id)) }} />}
-      {import.meta.env.DEV && GamificationDebug && isLocalDevelopment(import.meta.env.DEV, window.location.hostname) && (
-        <Suspense fallback={null}>
-          <GamificationDebug state={gamification} enabled={canWrite} onChange={(transform) => {
-            if (!writer.current || !isLocalDevelopment(import.meta.env.DEV, window.location.hostname)) return false
-            try { commitGamification(transform(game.current)); return true } catch { failStorage(); return false }
-          }} />
-        </Suspense>
-      )}
 
       <div className="workspace-grid">
         <section className="panel setup-panel" aria-labelledby="setup-heading">
@@ -749,7 +732,7 @@ function App() {
           {editingPlan && <PlanEditor initial={editingPlan} onSave={saveEditedPlan} onCancel={() => setEditingPlan(null)} disabled={!canWrite || isGenerating || pendingClarification !== null} />}
           {mission && !editingPlan && <><p className="generation-notice">Alle Schritte sind bearbeitbar. KI-Pläne sind Vorschläge. Du entscheidest über deinen Plan.</p>
             <button type="button" className="clarification-skip" disabled={isGenerating || pendingClarification !== null} onClick={() => setEditingPlan(mission)}>Lernplan bearbeiten</button></>}
-          {mission ? (
+          {!editingPlan && (mission ? (
             <>
               <div className="plan-summary">
                 <div className="summary-copy">
@@ -793,7 +776,7 @@ function App() {
               <p>Beschreib dein Lernziel und wir teilen es in machbare Etappen auf.</p>
               <span className="empty-hint">Dein Plan erscheint genau hier <span>↓</span></span>
             </div>
-          )}
+          ))}
         </section>
       </div>
 
@@ -816,6 +799,25 @@ function App() {
         <p className="timer-encouragement"><span>✦</span> Kleine Schritte zählen.</p>
       </section>
 
+      <div className="mission-support">
+      <GamificationPanel
+        state={gamification}
+        rewardNotice={rewardNotice}
+      />
+
+      <OrbCrateShop state={gamification} enabled={canWrite} onPurchase={handleCratePurchase} onOpenCollection={() => setCollectionOpen(true)} />
+      {collectionOpen && <OrbCollectionDialog state={gamification} enabled={canWrite} onClose={() => setCollectionOpen(false)}
+        onEquipOrb={id => { if (writer.current) commitGamification(equipOrb(game.current, id)) }} />}
+      {import.meta.env.DEV && GamificationDebug && isLocalDevelopment(import.meta.env.DEV, window.location.hostname) && (
+        <Suspense fallback={null}>
+          <GamificationDebug state={gamification} enabled={canWrite} onChange={(transform) => {
+            if (!writer.current || !isLocalDevelopment(import.meta.env.DEV, window.location.hostname)) return false
+            try { commitGamification(transform(game.current)); return true } catch { failStorage(); return false }
+          }} />
+        </Suspense>
+      )}
+
+      </div>
       <LearningHistory entries={history} />
       <footer className="footer"><span>MISSION <i>·</i> DEIN LERNWEG, IN DEINEM TEMPO.</span><span>Mit Ruhe. Mit Fokus. Mit dir.</span></footer>
       {showMissionCompletion && <MissionRewardDialog onClose={() => setShowMissionCompletion(false)} />}
