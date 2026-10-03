@@ -541,3 +541,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-
 .editor-actions button { background: #23333a; color: #eef4f4; border: 1px solid #43505a; border-radius: 8px; padding: .6rem; cursor: pointer; }
 .editor-actions button:disabled { opacity: .4; }
 .plan-editor :focus-visible { outline: 2px solid #97e5c9; outline-offset: 3px; }
+.learning-history { margin: 1.5rem 0; border-top: 1px solid #34404a; padding: 1rem 0; color: #dce8e8; }
+.learning-history summary { cursor: pointer; font-weight: 600; }
+.learning-history summary:focus-visible { outline: 2px solid #97e5c9; outline-offset: 4px; }
+.learning-history ol { list-style: none; padding: 0; }
+.learning-history li { display: grid; gap: .3rem; padding: .8rem 0; border-bottom: 1px solid #34404a; overflow-wrap: anywhere; }
+.learning-history time, .learning-history li span { color: #aabbbd; font-size: .85rem; }

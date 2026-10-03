@@ -17,10 +17,12 @@ type Props = {
   onToggleStep: (id: string) => void
   onLeave: () => void
   onEditPlan?: () => void
+  onEndSession?: () => void
+  onCompleteSession?: () => void
 }
 
 export default function FocusMode({ mission, orb, countdown, stopwatch, isRunning, finished, enabled, error,
-  onToggleTimer, onResetTimer, onToggleStep, onLeave, onEditPlan }: Props) {
+  onToggleTimer, onResetTimer, onToggleStep, onLeave, onEditPlan, onEndSession, onCompleteSession }: Props) {
   const heading = useRef<HTMLHeadingElement>(null)
   const leave = useRef(onLeave)
   leave.current = onLeave
@@ -55,6 +57,8 @@ export default function FocusMode({ mission, orb, countdown, stopwatch, isRunnin
         <div className="focus-controls">
           <button className="timer-button" type="button" disabled={!enabled} onClick={onToggleTimer}>{isRunning ? 'Pause' : finished ? 'Weiter' : 'Fortsetzen'}</button>
           <button className="reset-button" type="button" disabled={!enabled} onClick={onResetTimer} aria-label="Timer zurücksetzen">↺</button>
+          {onEndSession && <button className="focus-leave" type="button" disabled={!enabled} onClick={onEndSession}>Session beenden</button>}
+          {stopwatch && onCompleteSession && <button className="focus-leave" type="button" disabled={!enabled} onClick={onCompleteSession}>Session abschließen</button>}
         </div>
       </section>
       <section className="focus-learning" aria-labelledby="focus-goal">

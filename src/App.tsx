@@ -1,3 +1,5 @@
+import LearningHistory from './components/LearningHistory'
+import { normalizeHistory, normalizeActiveSession, finishLearningSession, type SessionHistoryEntry, type ActiveLearningSession } from './services/learningHistory'
 import PlanEditor from './components/PlanEditor'
 import { applyPlanTiming } from './services/planEditor'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
@@ -38,7 +40,7 @@ import { isLocalDevelopment } from './services/developmentMode'
 const GamificationDebug = import.meta.env.DEV ? lazy(() => import('./components/GamificationDebug')) : null
 
 type FormSettings = LearningPlanInput
-type SavedAppState = { form: FormSettings; mission: LearningPlan | null; remainingSeconds: number; elapsedSeconds?: number }
+type SavedAppState = { form: FormSettings; mission: LearningPlan | null; remainingSeconds: number; elapsedSeconds?: number; history?: SessionHistoryEntry[]; activeSession?: ActiveLearningSession | null }
 type PendingClarification = { question: string; input: LearningPlanInput }
 
 const STORAGE_KEY = 'mission.saved-mission.v1'
@@ -160,8 +162,11 @@ function readSavedMission(): SavedAppState | null {
     if (!form) return null
 
     const storedSeconds = parsed.remainingSeconds
+    const history = normalizeHistory(parsed.history)
     return {
       form,
+      history,
+      activeSession: normalizeActiveSession(parsed.activeSession, history),
       mission,
       elapsedSeconds: typeof parsed.elapsedSeconds === 'number' && Number.isFinite(parsed.elapsedSeconds) && parsed.elapsedSeconds >= 0 ? parsed.elapsedSeconds : Math.max(0, (mission?.timeBudgetMinutes ?? 25) * 60 - (typeof storedSeconds === 'number' ? storedSeconds : (mission?.timeBudgetMinutes ?? 25) * 60)),
       remainingSeconds: typeof storedSeconds === 'number' && Number.isFinite(storedSeconds) && storedSeconds >= 0
@@ -182,6 +187,8 @@ function formatTime(totalSeconds: number) {
 
 function App() {
   const [saved] = useState(readSavedMission)
+  const [history, setHistory] = useState(saved?.history ?? [])
+  const [hasActiveSession, setHasActiveSession] = useState(Boolean(saved?.activeSession))
   const [task, setTask] = useState(saved?.form.goal ?? '')
   const [minutes, setMinutes] = useState(saved?.form.timeBudgetMinutes ?? 25)
   const [energy, setEnergy] = useState<EnergyLevel>(saved?.form.energyLevel ?? 'medium')
@@ -207,7 +214,7 @@ function App() {
   const writer = useRef(false)
   const session = useRef<FocusSession | null>(null)
   const game = useRef(gamification)
-  const appSnapshot = useRef<SavedAppState>({ form: { goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds })
+  const appSnapshot = useRef<SavedAppState>({ history: saved?.history ?? [], activeSession: saved?.activeSession ?? null, form: { goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds })
   const stopRef = useRef<() => void>(() => {})
 
   function commitGamification(next: GamificationState) {
@@ -225,10 +232,40 @@ function App() {
     const seconds = advanced.session.remainingMilliseconds / 1000
     const elapsed = (appSnapshot.current.elapsedSeconds ?? 0) + advanced.elapsedMilliseconds / 1000
     setElapsedSeconds(elapsed)
-    appSnapshot.current = { ...appSnapshot.current, remainingSeconds: seconds, elapsedSeconds: elapsed }
+    const active = appSnapshot.current.activeSession
+    appSnapshot.current = { ...appSnapshot.current, remainingSeconds: seconds, elapsedSeconds: elapsed,
+      activeSession: active ? { ...active, focusSeconds: active.focusSeconds + advanced.elapsedMilliseconds / 1000 } : null }
+    if (!advanced.session.stopwatch && seconds === 0) finalizeSession('completed')
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appSnapshot.current))
     setRemainingSeconds(seconds)
     if (!advanced.session.stopwatch && seconds === 0) { session.current = null; setIsRunning(false) }
+  }
+
+  function finalizeSession(status: SessionHistoryEntry['status']) {
+    const active = appSnapshot.current.activeSession
+    if (!writer.current || !active) return
+    const currentPlan = appSnapshot.current.mission
+    const snapshot = currentPlan?.id === active.missionId ? { ...active,
+      completedSteps: currentPlan.steps.filter(s => s.done).length, totalSteps: currentPlan.steps.length } : active
+    const endedAt = new Date(Math.max(Date.now(), Date.parse(active.startedAt))).toISOString()
+    const next = finishLearningSession(appSnapshot.current.history ?? [], snapshot, status, endedAt)
+    appSnapshot.current = { ...appSnapshot.current, history: next, activeSession: null }
+    setHistory(next)
+    setHasActiveSession(false)
+  }
+
+  function endLearningSession(status: SessionHistoryEntry['status'] = 'ended_early') {
+    if (!writer.current || !appSnapshot.current.activeSession) return
+    try {
+      stopTimer()
+      finalizeSession(status)
+      setElapsedSeconds(0)
+      const duration = mission?.timeMode === 'stopwatch' ? 0 : (mission?.timeBudgetMinutes ?? 25) * 60
+      setRemainingSeconds(duration)
+      appSnapshot.current = { ...appSnapshot.current, remainingSeconds: duration, elapsedSeconds: 0 }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appSnapshot.current))
+      setIsFocusMode(false)
+    } catch { failStorage() }
   }
 
   function stopTimer() {
@@ -257,7 +294,13 @@ function App() {
   }
 
   useEffect(() => {
-    const snapshot = { form: { goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds }
+    const active = appSnapshot.current.activeSession
+    const activePlan = mission?.id === active?.missionId ? mission : appSnapshot.current.mission
+    if (active && activePlan?.id === active.missionId) {
+      appSnapshot.current = { ...appSnapshot.current, activeSession: { ...active,
+        completedSteps: activePlan.steps.filter(s => s.done).length, totalSteps: activePlan.steps.length } }
+    }
+    const snapshot = { ...appSnapshot.current, form: { goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds }
     appSnapshot.current = snapshot
     if (!canWrite || !writer.current) return
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot)) } catch { failStorage() }
@@ -277,6 +320,8 @@ function App() {
         setRemainingSeconds(latest.remainingSeconds)
         setEditingPlan(null)
         appSnapshot.current = latest
+        setHistory(latest.history ?? [])
+        setHasActiveSession(Boolean(latest.activeSession))
       }
       game.current = loadGamificationState(true)
       setGamification(game.current)
@@ -468,6 +513,18 @@ function App() {
       setElapsedSeconds(0)
       appSnapshot.current = { ...appSnapshot.current, elapsedSeconds: 0 }
     }
+    if (!appSnapshot.current.activeSession) {
+      const currentPlan = appSnapshot.current.mission
+      appSnapshot.current = { ...appSnapshot.current, activeSession: {
+        id: crypto.randomUUID(), startedAt: new Date().toISOString(),
+        missionId: currentPlan?.id ?? null, goal: currentPlan?.goal ?? 'Freie Fokuszeit', focusSeconds: 0,
+        plannedSeconds: currentPlan?.timeMode === 'stopwatch' ? null : (currentPlan?.timeBudgetMinutes ?? 25) * 60,
+        timeMode: currentPlan?.timeMode ?? 'manual',
+        completedSteps: currentPlan?.steps.filter(s => s.done).length ?? 0, totalSteps: currentPlan?.steps.length ?? 0,
+      } }
+      setHasActiveSession(true)
+    }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appSnapshot.current)) } catch { failStorage(); return }
     session.current = { lastTime: performance.now(), remainingMilliseconds: duration * 1000, stopwatch: mission?.timeMode === 'stopwatch' }
     setRemainingSeconds(duration)
     setIsRunning(true)
@@ -492,6 +549,8 @@ function App() {
         countdown={formatTime(mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)} stopwatch={mission?.timeMode === 'stopwatch'} isRunning={isRunning} finished={mission?.timeMode !== 'stopwatch' && remainingSeconds === 0}
         enabled={canWrite} error={storageError} onToggleTimer={toggleTimer} onResetTimer={resetTimer}
         onEditPlan={mission ? () => { setEditingPlan(mission); setIsFocusMode(false) } : undefined}
+        onEndSession={hasActiveSession ? () => endLearningSession() : undefined}
+        onCompleteSession={hasActiveSession ? () => endLearningSession('completed') : undefined}
         onToggleStep={toggleStep} onLeave={leaveFocusMode} />
       {showMissionCompletion && <MissionRewardDialog onClose={() => setShowMissionCompletion(false)} />}
     </>
@@ -747,9 +806,12 @@ function App() {
           </button>
           <button className="reset-button" type="button" onClick={resetTimer} aria-label="Timer zurücksetzen" title="Timer zurücksetzen">↺</button>
         </div>
+        {hasActiveSession && <button className="clarification-skip" type="button" onClick={() => endLearningSession()}>Session beenden</button>}
+        {hasActiveSession && mission?.timeMode === 'stopwatch' && <button className="clarification-skip" type="button" onClick={() => endLearningSession('completed')}>Session abschließen</button>}
         <p className="timer-encouragement"><span>✦</span> Kleine Schritte zählen.</p>
       </section>
 
+      <LearningHistory entries={history} />
       <footer className="footer"><span>MISSION <i>·</i> DEIN LERNWEG, IN DEINEM TEMPO.</span><span>Mit Ruhe. Mit Fokus. Mit dir.</span></footer>
       {showMissionCompletion && <MissionRewardDialog onClose={() => setShowMissionCompletion(false)} />}
     </main>
