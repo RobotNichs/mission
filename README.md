@@ -37,6 +37,8 @@ Wenn ein Detail für einen passenden Plan fehlt, zeigt Mission höchstens eine g
 - Thematische Mock-/KI-Lernpläne mit lokalem Fallback erzeugen
 - Lernschritte abhaken und den Fortschritt verfolgen
 - Countdown starten, pausieren und zurücksetzen
+- Beim Timerstart automatisch in den Fokusmodus wechseln: großer ausgewählter Orb mit Countdown, Lernziel und abhakbaren Schritten
+- Fokusmodus per Button oder Escape verlassen; der Timer pausiert und bereits gesammelte Zeit bleibt erhalten
 - Einstellungen, Schritte und verbleibende Zeit lokal im Browser speichern (localStorage)
 - Level aus gesammelter Fokuszeit: Level L beginnt bei `30 × (L - 1)²` Gesamtminuten
 - Ein Coin je voller Fokusminute; Teilminuten bleiben über Sitzungen erhalten
@@ -56,6 +58,8 @@ Der frühere Hintergrund-/Effekt-Shop wird nicht mehr angezeigt. Bereits gekauft
 Fokuszeit zählt ausschließlich während eines laufenden Countdowns und höchstens bis zu dessen Ende. Pause, Reset und Planwechsel erhalten bereits gesammelte Zeit. Nach einem Reload startet der Timer pausiert; geschlossene Browserzeit wird nicht nachträglich vergütet. Eine exklusive Web-Locks-Sperre erlaubt nur einem Tab Änderungen und Fokusabrechnung. Weitere Tabs zeigen den gespeicherten Stand schreibgeschützt und übernehmen nach Freigabe pausiert. Dafür benötigt Mission einen Browser mit Web Locks unter HTTPS oder localhost. Fehlt die Unterstützung, bleibt die App zum Schutz der Daten schreibgeschützt.
 
 ## Wichtige Projektdateien
+
+Der Fokusmodus nutzt ausschließlich den bestehenden Countdown und Fokuszeit-Service. Pause, Fortsetzen und Reset steuern denselben Timer; Abhaken vergibt keine Zeit oder Coins. Am Timer-Ende erscheint ein dezenter Abschluss, bei `prefers-reduced-motion` ohne Animation. Shop und Sammlung sind im Fokusmodus ausgeblendet. Nach einem Reload erscheinen die normale Ansicht und ein pausierter Timer; der Fokusmodus wird nicht gespeichert.
 
 Im lokalen Entwicklungsserver (`npm run dev` auf localhost, 127.0.0.1 oder ::1) steht unter der Orb-Kiste der aufklappbare „Lokaler Gamification-Testmodus“ bereit. Dort lassen sich 300 Test-Coins hinzufügen oder einzelne Orbs freischalten. Diese Aktionen speichern ausschließlich Coins beziehungsweise Sammlung; Fokuszeit, Level und Timer bleiben unverändert. Vorhandene Daten werden nicht zurückgesetzt. Testwerte bleiben lokal auch nach einem Reload erhalten. Der Bereich verwendet dieselbe exklusive Tab-Schreibberechtigung wie reguläre Käufe. Produktionsbuilds einschließlich `npm run preview` enthalten den Debug-Bereich und seine Aktionslogik nicht.
 

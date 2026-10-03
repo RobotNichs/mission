@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import OrbCrateShop from './components/OrbCrateShop'
 import GamificationPanel from './components/GamificationPanel'
 import MissionRewardDialog from './components/MissionRewardDialog'
+import FocusMode from './components/FocusMode'
+import { defaultOrb, orbCollection } from './services/orbCatalog'
 import {
   recordMissionCompletion,
   addFocusTime,
@@ -187,6 +189,9 @@ function App() {
   const [clarificationAnswer, setClarificationAnswer] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
+  const [isFocusMode, setIsFocusMode] = useState(false)
+  const normalTimerButton = useRef<HTMLButtonElement>(null)
+  const hasEnteredFocus = useRef(false)
   const [canWrite, setCanWrite] = useState(false)
   const [storageError, setStorageError] = useState<string | null>(null)
   const writer = useRef(false)
@@ -225,6 +230,11 @@ function App() {
   const completed = steps.filter((step) => step.done).length
   const progress = steps.length ? Math.round((completed / steps.length) * 100) : 0
   const hasMission = mission !== null
+
+  useEffect(() => {
+    if (isFocusMode) hasEnteredFocus.current = true
+    else if (hasEnteredFocus.current) normalTimerButton.current?.focus()
+  }, [isFocusMode])
 
   function failStorage() {
     session.current = null
@@ -336,6 +346,7 @@ function App() {
     })
     setRemainingSeconds(input.timeBudgetMinutes * 60)
     setIsRunning(false)
+    setIsFocusMode(false)
     setPendingClarification(null)
     setClarificationAnswer('')
   }
@@ -408,6 +419,7 @@ function App() {
     session.current = { lastTime: performance.now(), remainingMilliseconds: duration * 1000 }
     setRemainingSeconds(duration)
     setIsRunning(true)
+    setIsFocusMode(true)
   }
 
   function resetTimer() {
@@ -415,6 +427,21 @@ function App() {
     stopTimer()
     setRemainingSeconds((mission?.timeBudgetMinutes ?? 25) * 60)
   }
+
+  function leaveFocusMode() {
+    try { stopTimer() } catch { failStorage() }
+    setIsFocusMode(false)
+  }
+
+  if (isFocusMode) return (
+    <>
+      <FocusMode mission={mission} orb={orbCollection.find((orb) => orb.id === gamification.equippedOrbId) ?? defaultOrb}
+        countdown={formatTime(remainingSeconds)} isRunning={isRunning} finished={remainingSeconds === 0}
+        enabled={canWrite} error={storageError} onToggleTimer={toggleTimer} onResetTimer={resetTimer}
+        onToggleStep={toggleStep} onLeave={leaveFocusMode} />
+      {showMissionCompletion && <MissionRewardDialog onClose={() => setShowMissionCompletion(false)} />}
+    </>
+  )
 
   return (
     <fieldset className="mission-writer-surface" disabled={!canWrite}>
@@ -654,7 +681,7 @@ function App() {
           <span>{formatTime(remainingSeconds)}</span><small>MIN : SEK</small>
         </div>
         <div className="timer-controls">
-          <button className="timer-button" type="button" onClick={toggleTimer}>
+          <button ref={normalTimerButton} className="timer-button" type="button" onClick={toggleTimer}>
             <span>{isRunning ? 'Ⅱ' : '▶'}</span>{isRunning ? 'Pause' : remainingSeconds === 0 ? 'Weiter' : 'Start'}
           </button>
           <button className="reset-button" type="button" onClick={resetTimer} aria-label="Timer zurücksetzen" title="Timer zurücksetzen">↺</button>

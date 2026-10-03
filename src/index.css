@@ -493,3 +493,42 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-
 @media (prefers-reduced-motion: reduce) {
   .orb-art *, .orb-art *::after, .crate-opening > span { animation: none !important; transition: none !important; }
 }
+
+.focus-mode { min-height: 100svh; padding: 24px max(20px, calc((100vw - 960px) / 2)) 48px; color: #e4ecfa; background: radial-gradient(ellipse at 50% 20%, #23203e 0, #0c1422 48%, #080f19 100%); }
+.focus-topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.focus-topline > span { color: #9daac0; font-size: 11px; letter-spacing: 2px; }
+.focus-leave { min-height: 44px; padding: 8px 14px; border: 1px solid #39465a; border-radius: 10px; color: #c6d2e4; background: #111a29; font-size: 12px; }
+.focus-session { display: flex; align-items: center; flex-direction: column; padding: 36px 0 30px; }
+.focus-title { margin: 0 0 24px; color: #bdc9df; font-size: clamp(18px, 3vw, 25px); font-weight: 500; letter-spacing: -.5px; text-align: center; }
+.focus-title:focus { outline: none; }
+.focus-orb-stage { position: relative; display: grid; place-items: center; width: min(360px, 78vw); aspect-ratio: 1; }
+.focus-orb { position: absolute; inset: 0; width: 100%; height: 100%; }
+.focus-orb-stage.is-running .focus-orb { animation: focus-breathe 7s ease-in-out infinite; }
+.focus-orb-stage.is-finished::after { position: absolute; inset: 3%; border: 1px solid #b7f9e6; border-radius: 50%; content: ''; pointer-events: none; animation: focus-complete 1.4s ease-out both; }
+.focus-countdown { z-index: 1; display: flex; align-items: center; flex-direction: column; padding: 14px 20px; border-radius: 22px; color: #fff; background: #060d1d78; backdrop-filter: blur(7px); text-shadow: 0 2px 15px #000; pointer-events: none; }
+.focus-countdown strong { font-size: clamp(42px, 9vw, 70px); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -2px; }
+.focus-countdown span { margin-top: 8px; color: #d4e3f4; font-size: 10px; letter-spacing: 3px; }
+.focus-session-status { min-height: 20px; margin: 22px 0 16px; color: #b7c6d9; font-size: 13px; text-align: center; }
+.focus-controls { display: flex; gap: 10px; }
+.focus-controls .timer-button { min-height: 44px; min-width: 160px; }
+.focus-controls .reset-button { min-width: 44px; min-height: 44px; }
+.focus-learning { width: min(650px, 100%); margin: 0 auto; }
+.focus-learning h2 { margin-bottom: 24px; color: #e7edfa; font-size: clamp(20px, 4vw, 27px); line-height: 1.4; overflow-wrap: anywhere; }
+.focus-steps { margin-top: 16px; }
+.focus-steps .task-step { min-height: 68px; padding: 14px 0; }
+.focus-steps .step-title { font-size: 14px; }
+.focus-steps .step-description { font-size: 12px; line-height: 1.5; }
+.focus-empty { color: #a3b3c9; font-size: 13px; line-height: 1.6; }
+@keyframes focus-breathe { 50% { transform: scale(1.025); filter: brightness(1.08); } }
+@keyframes focus-complete { from { transform: scale(1); opacity: .8; } to { transform: scale(1.18); opacity: 0; } }
+@media (max-width: 520px) {
+  .focus-mode { padding: 16px 18px 30px; }
+  .focus-topline > span { font-size: 9px; letter-spacing: 1px; }
+  .focus-leave { font-size: 11px; }
+  .focus-session { padding-top: 28px; }
+  .focus-steps .step-duration { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-orb-stage.is-running .focus-orb, .focus-orb-stage.is-finished::after { animation: none; transition: none; }
+  .focus-orb-stage.is-finished::after { opacity: .35; }
+}

@@ -109,6 +109,7 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     const firstCheckbox = screen.getAllByRole('checkbox')[0]
     fireEvent.click(firstCheckbox)
     fireEvent.click(screen.getByRole('button', { name: /Start/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Fokusmodus verlassen' }))
 
     fireEvent.change(screen.getByLabelText('Wie viel Zeit hast du?'), {
       target: { value: '5' },
