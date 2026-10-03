@@ -18,7 +18,9 @@ export type CosmeticItem = {
 }
 
 export type GamificationState = {
-  xp: number
+  version: 2
+  legacyXp: number
+  totalFocusMilliseconds: number
   coins: number
   ownedOrbIds: string[]
   claimedStepRewardKeys: string[]
@@ -30,7 +32,9 @@ export type GamificationState = {
 }
 
 export const initialGamificationState: GamificationState = {
-  xp: 0,
+  version: 2,
+  legacyXp: 0,
+  totalFocusMilliseconds: 0,
   coins: 0,
   ownedOrbIds: [],
   claimedStepRewardKeys: [],

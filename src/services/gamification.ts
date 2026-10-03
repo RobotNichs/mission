@@ -7,10 +7,6 @@ import {
 } from '../types/gamification'
 
 export const GAMIFICATION_STORAGE_KEY = 'mission.gamification.v1'
-export const XP_PER_STEP = 10
-export const XP_PER_MISSION = 50
-export const COINS_PER_MISSION = 20
-export const XP_PER_LEVEL = 100
 export const DEFAULT_BACKGROUND_ID = 'deep-space'
 export const DEFAULT_CORE_EFFECT_ID = 'core-soft'
 
@@ -35,93 +31,41 @@ export const cosmeticShopItems: CosmeticItem[] = [
   { id: 'core-effect-prism', name: 'Prisma', kind: 'core-effect', cost: 55, description: 'Ein zurückhaltender violett-cyanfarbener Core-Schimmer.' },
 ]
 
-export type StepRewardResult = { state: GamificationState; xpAdded: number }
-export type MissionRewardResult = {
-  state: GamificationState
-  awarded: boolean
-  xpAdded: number
-  coinsAdded: number
-  orb: OrbDefinition | null
-  orbWasAlreadyOwned: boolean
-}
 export type CosmeticPurchaseResult = {
   state: GamificationState
   status: 'purchased' | 'already-owned' | 'insufficient-funds' | 'unknown-item'
 }
 
-export function getLevel(xp: number): number {
-  return Math.floor(Math.max(0, xp) / XP_PER_LEVEL) + 1
+export function getLevel(focusMinutes: number): number {
+  const minutes = Number.isFinite(focusMinutes) ? Math.max(0, focusMinutes) : 0
+  return Math.floor(Math.sqrt(minutes / 30)) + 1
 }
 
-export function getXpWithinLevel(xp: number): number {
-  return Math.max(0, xp) % XP_PER_LEVEL
+export function getLevelStartMinutes(level: number): number {
+  return 30 * (level - 1) ** 2
 }
 
-export function getXpToNextLevel(xp: number): number {
-  return XP_PER_LEVEL - getXpWithinLevel(xp)
+export function addFocusTime(state: GamificationState, elapsedMilliseconds: number): GamificationState {
+  if (!Number.isFinite(elapsedMilliseconds) || elapsedMilliseconds <= 0) return state
+  const total = Math.min(Number.MAX_SAFE_INTEGER, state.totalFocusMilliseconds + Math.floor(elapsedMilliseconds))
+  const coinsAdded = Math.floor(total / 60_000) - Math.floor(state.totalFocusMilliseconds / 60_000)
+  return { ...state, totalFocusMilliseconds: total, coins: Math.min(Number.MAX_SAFE_INTEGER, state.coins + coinsAdded) }
 }
 
 export function getCoreSize(level: number): number {
   return 76 + Math.min(Math.max(level - 1, 0), 8) * 5
 }
 
-export function awardStepCompletion(
-  state: GamificationState,
-  missionId: string,
-  stepId: string,
-  stableRewardSlot?: string,
-): StepRewardResult {
-  const legacyRewardKey = `${missionId}::${stepId}`
-  const rewardKey = stableRewardSlot
-    ? `${missionId}::slot:${stableRewardSlot}`
-    : legacyRewardKey
-  if (
-    state.claimedStepRewardKeys.includes(legacyRewardKey)
-    || state.claimedStepRewardKeys.includes(rewardKey)
-  ) return { state, xpAdded: 0 }
-
-  return {
-    state: {
-      ...state,
-      xp: state.xp + XP_PER_STEP,
-      claimedStepRewardKeys: [...state.claimedStepRewardKeys, legacyRewardKey, ...(rewardKey === legacyRewardKey ? [] : [rewardKey])],
-    },
-    xpAdded: XP_PER_STEP,
-  }
+// Stable history is retained for plan reconciliation, without awarding currency.
+export function recordStepCompletion(state: GamificationState, missionId: string, stepId: string, stableSlot: string): GamificationState {
+  return { ...state, claimedStepRewardKeys: [...new Set([
+    ...state.claimedStepRewardKeys, missionId + '::' + stepId, missionId + '::slot:' + stableSlot,
+  ])] }
 }
 
-export function awardMissionCompletion(
-  state: GamificationState,
-  missionId: string,
-  randomRoll: number,
-): MissionRewardResult {
-  if (state.claimedMissionIds.includes(missionId)) {
-    return {
-      state,
-      awarded: false,
-      xpAdded: 0,
-      coinsAdded: 0,
-      orb: null,
-      orbWasAlreadyOwned: false,
-    }
-  }
-
-  const orb = rollOrb(randomRoll)
-  const orbWasAlreadyOwned = state.ownedOrbIds.includes(orb.id)
-  return {
-    state: {
-      ...state,
-      xp: state.xp + XP_PER_MISSION,
-      coins: state.coins + COINS_PER_MISSION,
-      ownedOrbIds: orbWasAlreadyOwned ? state.ownedOrbIds : [...state.ownedOrbIds, orb.id],
-      claimedMissionIds: [...state.claimedMissionIds, missionId],
-    },
-    awarded: true,
-    xpAdded: XP_PER_MISSION,
-    coinsAdded: COINS_PER_MISSION,
-    orb,
-    orbWasAlreadyOwned,
-  }
+export function recordMissionCompletion(state: GamificationState, missionId: string): GamificationState {
+  if (state.claimedMissionIds.includes(missionId)) return state
+  return { ...state, claimedMissionIds: [...state.claimedMissionIds, missionId] }
 }
 
 export function rollOrb(randomRoll: number): OrbDefinition {
@@ -170,29 +114,20 @@ export function equipCosmetic(state: GamificationState, itemId: string): Gamific
     : { ...state, selectedCoreEffectId: item.id }
 }
 
-export function loadGamificationState(): GamificationState {
+export function loadGamificationState(strictStorage = false): GamificationState {
   try {
     const saved = localStorage.getItem(GAMIFICATION_STORAGE_KEY)
     if (!saved) return initialGamificationState
     const parsed: unknown = JSON.parse(saved)
-    if (typeof parsed !== 'object' || parsed === null) return initialGamificationState
-    const value = parsed as Partial<GamificationState>
-    if (
-      typeof value.xp !== 'number'
-      || !Number.isFinite(value.xp)
-      || value.xp < 0
-      || typeof value.coins !== 'number'
-      || !Number.isFinite(value.coins)
-      || value.coins < 0
-      || !Array.isArray(value.ownedOrbIds)
-      || !Array.isArray(value.claimedStepRewardKeys)
-      || !Array.isArray(value.claimedMissionIds)
-    ) {
-      return initialGamificationState
-    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return initialGamificationState
+    const value = parsed as Partial<GamificationState> & { xp?: unknown }
+    const nonnegative = (input: unknown): number => typeof input === 'number'
+      && Number.isFinite(input) && input >= 0 && input <= Number.MAX_SAFE_INTEGER ? input : 0
+    const strings = (input: unknown): string[] => Array.isArray(input)
+      ? [...new Set(input.filter((item): item is string => typeof item === 'string'))] : []
 
     const validOrbIds = new Set(orbCollection.map((orb) => orb.id))
-    const ownedOrbIds = [...new Set(value.ownedOrbIds.filter((id): id is string => typeof id === 'string' && validOrbIds.has(id)))]
+    const ownedOrbIds = strings(value.ownedOrbIds).filter((id) => validOrbIds.has(id))
     const validCosmeticIds = new Set(cosmeticShopItems.map((item) => item.id))
     const ownedCosmeticIds = Array.isArray(value.ownedCosmeticIds)
       ? [...new Set(value.ownedCosmeticIds.filter((id): id is string => typeof id === 'string' && validCosmeticIds.has(id)))]
@@ -210,11 +145,13 @@ export function loadGamificationState(): GamificationState {
       ? value.selectedCoreEffectId
       : DEFAULT_CORE_EFFECT_ID
     return {
-      xp: value.xp,
-      coins: value.coins,
+      version: 2,
+      legacyXp: nonnegative(value.legacyXp ?? value.xp),
+      totalFocusMilliseconds: Math.floor(nonnegative(value.totalFocusMilliseconds)),
+      coins: nonnegative(value.coins),
       ownedOrbIds,
-      claimedStepRewardKeys: [...new Set(value.claimedStepRewardKeys.filter((key): key is string => typeof key === 'string'))],
-      claimedMissionIds: [...new Set(value.claimedMissionIds.filter((id): id is string => typeof id === 'string'))],
+      claimedStepRewardKeys: strings(value.claimedStepRewardKeys),
+      claimedMissionIds: strings(value.claimedMissionIds),
       equippedOrbId: typeof value.equippedOrbId === 'string' && ownedOrbIds.includes(value.equippedOrbId)
         ? value.equippedOrbId
         : null,
@@ -222,7 +159,9 @@ export function loadGamificationState(): GamificationState {
       selectedBackgroundId,
       selectedCoreEffectId,
     }
-  } catch {
+  } catch (error) {
+    // A writer must not overwrite inaccessible data with an empty default state.
+    if (strictStorage) throw error
     return initialGamificationState
   }
 }

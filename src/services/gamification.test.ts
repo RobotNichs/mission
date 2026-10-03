@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  awardMissionCompletion,
-  awardStepCompletion,
-  COINS_PER_MISSION,
+  recordMissionCompletion,
+  addFocusTime,
+  recordStepCompletion,
   cosmeticShopItems,
   DEFAULT_BACKGROUND_ID,
   DEFAULT_CORE_EFFECT_ID,
@@ -16,55 +16,39 @@ import {
   purchaseCosmetic,
   rarityProbabilities,
   rollOrb,
-  XP_PER_MISSION,
-  XP_PER_STEP,
 } from './gamification'
 import { initialGamificationState } from '../types/gamification'
 
 beforeEach(() => localStorage.clear())
 
-describe('XP, Mission-Belohnungen und Sammlung', () => {
-  it('vergibt XP für einen Schritt nur einmal, auch wenn er erneut abgehakt wird', () => {
-    const firstAward = awardStepCompletion(initialGamificationState, 'mission-a', 'step-a')
-    const repeatedAward = awardStepCompletion(firstAward.state, 'mission-a', 'step-a')
-
-    expect(firstAward.xpAdded).toBe(XP_PER_STEP)
-    expect(repeatedAward.xpAdded).toBe(0)
-    expect(repeatedAward.state.xp).toBe(XP_PER_STEP)
+describe('Fokuszeit, Missionsfortschritt und Sammlung', () => {
+  it('merkt erledigte Schritte ohne Währung und ohne doppelte Einträge', () => {
+    const first = recordStepCompletion(initialGamificationState, 'mission-a', 'step-a', 'learning:1')
+    const repeated = recordStepCompletion(first, 'mission-a', 'step-a', 'learning:1')
+    expect(repeated).toEqual(first)
+    expect(first.coins).toBe(0)
+    expect(first.totalFocusMilliseconds).toBe(0)
   })
 
-  it('sperrt erneut generierte Schritt-IDs über einen stabilen Missions-Slot', () => {
-    const firstPlan = awardStepCompletion(initialGamificationState, 'mission-a', 'server-step-1', 'learning:1')
-    const regeneratedPlan = awardStepCompletion(firstPlan.state, 'mission-a', 'different-server-step-id', 'learning:1')
-
-    expect(firstPlan.xpAdded).toBe(XP_PER_STEP)
-    expect(regeneratedPlan.xpAdded).toBe(0)
-    expect(regeneratedPlan.state.xp).toBe(XP_PER_STEP)
+  it('erhält stabile Slots bei neu generierten Schritt-IDs ohne Belohnung', () => {
+    const first = recordStepCompletion(initialGamificationState, 'a', 'step-1', 'learning:1')
+    const next = recordStepCompletion(first, 'a', 'step-2', 'learning:1')
+    expect(next.claimedStepRewardKeys.filter((key) => key.includes('slot:'))).toEqual(['a::slot:learning:1'])
+    expect(next.coins).toBe(0)
   })
 
-  it('vergibt Mission-XP und Coins nur einmal und rollt genau ein Orb-Design', () => {
-    const firstAward = awardMissionCompletion(initialGamificationState, 'mission-a', 0.99)
-    const repeatedAward = awardMissionCompletion(firstAward.state, 'mission-a', 0)
-
-    expect(firstAward.awarded).toBe(true)
-    expect(firstAward.xpAdded).toBe(XP_PER_MISSION)
-    expect(firstAward.coinsAdded).toBe(COINS_PER_MISSION)
-    expect(firstAward.orb?.rarity).toBe('legendary')
-    expect(firstAward.state.ownedOrbIds).toEqual(['orb-legendary'])
-    expect(repeatedAward.awarded).toBe(false)
-    expect(repeatedAward.state.xp).toBe(XP_PER_MISSION)
-    expect(repeatedAward.state.coins).toBe(COINS_PER_MISSION)
+  it('merkt einen Missionsabschluss einmalig ohne Coins oder Orb-Drop', () => {
+    const first = recordMissionCompletion(initialGamificationState, 'a')
+    expect(recordMissionCompletion(first, 'a')).toBe(first)
+    expect(first.coins).toBe(0)
+    expect(first.ownedOrbIds).toEqual([])
   })
 
-  it('gibt bei einem bereits gesammelten Orb keine zusätzliche Orb- oder XP-Erstattung', () => {
-    const firstMission = awardMissionCompletion(initialGamificationState, 'mission-a', 0)
-    const secondMission = awardMissionCompletion(firstMission.state, 'mission-b', 0)
-
-    expect(secondMission.awarded).toBe(true)
-    expect(secondMission.orbWasAlreadyOwned).toBe(true)
-    expect(secondMission.state.ownedOrbIds).toEqual(['orb-common'])
-    expect(secondMission.xpAdded).toBe(XP_PER_MISSION)
-    expect(secondMission.coinsAdded).toBe(COINS_PER_MISSION)
+  it('erhält vorhandene Orbs und Coins auch über weitere Abschlüsse', () => {
+    const old = { ...initialGamificationState, coins: 20, ownedOrbIds: ['orb-common'] }
+    const next = recordMissionCompletion(recordMissionCompletion(old, 'a'), 'b')
+    expect(next.coins).toBe(20)
+    expect(next.ownedOrbIds).toEqual(['orb-common'])
   })
 
   it('weist transparente Seltenheitswahrscheinlichkeiten von insgesamt 100 Prozent aus', () => {
@@ -78,13 +62,13 @@ describe('XP, Mission-Belohnungen und Sammlung', () => {
     ]).toEqual(['common', 'rare', 'epic', 'legendary'])
   })
 
-  it('berechnet Level und Core-Größe anhand gesammelter XP', () => {
+  it('berechnet Level und Core-Größe anhand gesammelter Fokusminuten', () => {
     expect(getLevel(0)).toBe(1)
-    expect(getLevel(100)).toBe(2)
+    expect(getLevel(30)).toBe(2)
     expect(getCoreSize(2)).toBeGreaterThan(getCoreSize(1))
   })
 
-  it('lädt XP, Coins, Sammlung und Sperrlisten dauerhaft aus localStorage', () => {
+  it('archiviert XP und lädt Coins, Sammlung und Sperrlisten dauerhaft aus localStorage', () => {
     const savedState = {
       xp: 145,
       coins: 20,
@@ -95,7 +79,11 @@ describe('XP, Mission-Belohnungen und Sammlung', () => {
     localStorage.setItem(GAMIFICATION_STORAGE_KEY, JSON.stringify(savedState))
 
     expect(loadGamificationState()).toEqual({
-      ...savedState,
+      ...initialGamificationState,
+      coins: 20,
+      legacyXp: 145,
+      claimedStepRewardKeys: savedState.claimedStepRewardKeys,
+      claimedMissionIds: savedState.claimedMissionIds,
       ownedOrbIds: ['orb-common'],
       equippedOrbId: null,
       ownedCosmeticIds: [],
@@ -105,7 +93,7 @@ describe('XP, Mission-Belohnungen und Sammlung', () => {
   })
 
   it('rüstet nur eigene Orbs aus und erhält die Auswahl im gespeicherten Gamification-Zustand', () => {
-    const earned = awardMissionCompletion(initialGamificationState, 'mission-a', 0).state
+    const earned = { ...initialGamificationState, ownedOrbIds: ['orb-common'] }
     const equipped = equipOrb(earned, 'orb-common')
     const rejected = equipOrb(equipped, 'orb-legendary')
 
@@ -140,5 +128,43 @@ describe('XP, Mission-Belohnungen und Sammlung', () => {
 
     expect(equipped.selectedCoreEffectId).toBe(item.id)
     expect(loadGamificationState()).toEqual(equipped)
+  })
+})
+
+describe('Fokusgrenzen und Migration', () => {
+  it.each([[29, 1], [30, 2], [119, 2], [120, 3], [270, 4]])('nach %i Minuten: Level %i und genau ein Coin je Minute', (minutes, level) => {
+    const state = addFocusTime(initialGamificationState, minutes * 60_000)
+    expect(state.coins).toBe(minutes)
+    expect(getLevel(state.totalFocusMilliseconds / 60_000)).toBe(level)
+  })
+
+  it('bewahrt Teilminuten über Sitzungen und Käufe', () => {
+    const first = addFocusTime({ ...initialGamificationState, coins: 45 }, 59_999)
+    expect(first.coins).toBe(45)
+    const spent = purchaseCosmetic(first, 'background-violet-dusk').state
+    const next = addFocusTime(spent, 1)
+    expect(next.coins).toBe(1)
+    expect(next.totalFocusMilliseconds).toBe(60_000)
+    expect(addFocusTime(next, 60_000).coins).toBe(2)
+  })
+
+  it('vergibt beim wiederholten Laden keine Coins und archiviert XP nur einmal', () => {
+    localStorage.setItem(GAMIFICATION_STORAGE_KEY, JSON.stringify({ xp: 500, coins: 75, ownedOrbIds: ['orb-rare'], equippedOrbId: 'orb-rare', ownedCosmeticIds: ['core-effect-prism'], selectedCoreEffectId: 'core-effect-prism' }))
+    const migrated = loadGamificationState()
+    expect(migrated.legacyXp).toBe(500)
+    expect(migrated.totalFocusMilliseconds).toBe(0)
+    expect(migrated.coins).toBe(75)
+    expect(migrated.equippedOrbId).toBe('orb-rare')
+    expect(migrated.selectedCoreEffectId).toBe('core-effect-prism')
+    expect(migrated).not.toHaveProperty('xp')
+    localStorage.setItem(GAMIFICATION_STORAGE_KEY, JSON.stringify(migrated))
+    expect(loadGamificationState()).toEqual(migrated)
+    expect(loadGamificationState()).toEqual(migrated)
+  })
+
+  it('verwirft bei beschädigter Fokuszeit keinen gültigen Besitz', () => {
+    localStorage.setItem(GAMIFICATION_STORAGE_KEY, JSON.stringify({ ...initialGamificationState, totalFocusMilliseconds: -5, coins: 12, ownedOrbIds: ['orb-epic'] }))
+    expect(loadGamificationState()).toMatchObject({ totalFocusMilliseconds: 0, coins: 12, ownedOrbIds: ['orb-epic'] })
+    for (const invalid of [-1, NaN, Infinity, 0]) expect(addFocusTime(initialGamificationState, invalid)).toBe(initialGamificationState)
   })
 })

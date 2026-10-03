@@ -2,10 +2,8 @@ import type { GamificationState, OrbRarity } from '../types/gamification'
 import {
   getCoreSize,
   getLevel,
-  getXpToNextLevel,
-  getXpWithinLevel,
+  getLevelStartMinutes,
   orbCollection,
-  rarityProbabilities,
 } from '../services/gamification'
 
 type GamificationPanelProps = {
@@ -22,9 +20,11 @@ const rarityLabels: Record<OrbRarity, string> = {
 }
 
 export default function GamificationPanel({ state, rewardNotice, onEquipOrb }: GamificationPanelProps) {
-  const level = getLevel(state.xp)
-  const xpWithinLevel = getXpWithinLevel(state.xp)
-  const progress = (xpWithinLevel / 100) * 100
+  const focusMinutes = state.totalFocusMilliseconds / 60_000
+  const level = getLevel(focusMinutes)
+  const withinLevel = focusMinutes - getLevelStartMinutes(level)
+  const required = getLevelStartMinutes(level + 1) - getLevelStartMinutes(level)
+  const progress = (withinLevel / required) * 100
   const ownedOrbIds = new Set(state.ownedOrbIds)
 
   return (
@@ -63,14 +63,14 @@ export default function GamificationPanel({ state, rewardNotice, onEquipOrb }: G
             <span>Coins</span>
           </div>
         </div>
-        <div className="xp-copy">
-          <span>{state.xp} XP gesamt</span>
-          <span>Noch {getXpToNextLevel(state.xp)} XP bis Level {level + 1}</span>
+        <div className="focus-copy">
+          <span>{Math.floor(focusMinutes)} Fokusminuten gesamt</span>
+          <span>Noch {Math.ceil(required - withinLevel)} Fokusminuten bis Level {level + 1}</span>
         </div>
-        <div className="xp-track" role="progressbar" aria-label="Fortschritt zum nächsten Level" aria-valuenow={xpWithinLevel} aria-valuemin={0} aria-valuemax={100}>
+        <div className="focus-track" role="progressbar" aria-label="Fortschritt zum nächsten Level" aria-valuenow={Math.floor(withinLevel)} aria-valuemin={0} aria-valuemax={required}>
           <span style={{ width: `${progress}%` }} />
         </div>
-        <p className="reward-notice" aria-live="polite">{rewardNotice ?? 'Jeder erledigte Schritt bringt dich weiter.'}</p>
+        <p className="reward-notice" aria-live="polite">{rewardNotice ?? '1 Coin pro voller Fokusminute – auch über mehrere Sitzungen.'}</p>
       </div>
 
       <div className="collection-column">
@@ -103,7 +103,7 @@ export default function GamificationPanel({ state, rewardNotice, onEquipOrb }: G
           })}
         </ul>
         <p className="drop-rates">
-          Missionsfund: Common {rarityProbabilities.common * 100}% · Rare {rarityProbabilities.rare * 100}% · Epic {rarityProbabilities.epic * 100}% · Legendary {rarityProbabilities.legendary * 100}%
+          Deine bisher gesammelten Orbs bleiben erhalten. Missionsabschlüsse vergeben keine neuen Orbs.
         </p>
       </div>
     </section>

@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { createTestLocks } from './services/testLocks'
 import {
   cosmeticShopItems,
   DEFAULT_BACKGROUND_ID,
@@ -14,6 +15,7 @@ afterEach(cleanup)
 
 beforeEach(() => {
   localStorage.clear()
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: createTestLocks() })
 })
 
 afterEach(() => vi.restoreAllMocks())
@@ -136,13 +138,13 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     expect(screen.getAllByRole('checkbox').every((checkbox) => !(checkbox as HTMLInputElement).checked)).toBe(true)
   })
 
-  it('hält aktiven Plan, Häkchen, Timer und XP während einer offenen Rückfrage unverändert', async () => {
+  it('hält aktiven Plan, Häkchen, Timer und Fokuszeit während einer offenen Rückfrage unverändert', async () => {
     render(<App />)
     await createMission('SQL-JOINs üben', 15)
     fireEvent.click(screen.getAllByRole('checkbox')[0])
     const oldMission = JSON.parse(localStorage.getItem('mission.saved-mission.v1') ?? 'null').mission
     const timerBefore = screen.getByLabelText(/Verbleibende Zeit:/).textContent
-    const xpBefore = JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').xp
+    const focusBefore = JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').totalFocusMilliseconds
     installLearningPlanApiMock((request) => mockPlanResponse(request, 'Welcher Teil der Mathematik?', [
       { title: 'Mathematik verstehen', description: 'Arbeite ein konkretes mathematisches Beispiel durch.', kind: 'learning' },
     ]))
@@ -161,7 +163,7 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     expect(savedWhileWaiting.mission.steps[0].done).toBe(true)
     expect(screen.getByText('15 MIN').textContent).toBe('15 MIN')
     expect(screen.getByLabelText(/Verbleibende Zeit:/).textContent).toBe(timerBefore)
-    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').xp).toBe(xpBefore)
+    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').totalFocusMilliseconds).toBe(focusBefore)
     expect((screen.getByLabelText('Wie viel Zeit hast du?') as HTMLSelectElement).disabled).toBe(true)
   })
 
@@ -241,27 +243,27 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     expect(screen.queryByRole('heading', { name: 'Welcher Teil der Mathematik?' })).toBeNull()
   })
 
-  it('vergibt XP und Coins nicht erneut, wenn dieselbe aktive Mission aktualisiert oder Schritte erneut abgehakt werden', async () => {
+  it('vergibt beim Abhaken keine Coins oder Orbs, wenn dieselbe aktive Mission aktualisiert oder Schritte erneut abgehakt werden', async () => {
     render(<App />)
     await createMission('Java-Objekte üben', 10)
     const [firstStep, secondStep] = screen.getAllByRole('checkbox') as HTMLInputElement[]
 
     fireEvent.click(firstStep)
-    expect(JSON.parse(localStorage.getItem('mission.gamification.v1') ?? 'null').xp).toBe(10)
+    expect(JSON.parse(localStorage.getItem('mission.gamification.v1') ?? 'null').totalFocusMilliseconds).toBe(0)
     fireEvent.click(firstStep)
     fireEvent.click(firstStep)
-    expect(JSON.parse(localStorage.getItem('mission.gamification.v1') ?? 'null').xp).toBe(10)
+    expect(JSON.parse(localStorage.getItem('mission.gamification.v1') ?? 'null').totalFocusMilliseconds).toBe(0)
 
     fireEvent.click(secondStep)
     const completedState = JSON.parse(localStorage.getItem('mission.gamification.v1') ?? 'null')
     const missionId = JSON.parse(localStorage.getItem('mission.saved-mission.v1') ?? 'null').mission.id
-    expect(completedState.xp).toBe(70)
-    expect(completedState.coins).toBe(20)
-    expect(completedState.ownedOrbIds).toHaveLength(1)
+    expect(completedState.totalFocusMilliseconds).toBe(0)
+    expect(completedState.coins).toBe(0)
+    expect(completedState.ownedOrbIds).toHaveLength(0)
     const rewardDialog = screen.getByRole('dialog', { name: 'Starker Abschluss.' })
-    expect(rewardDialog.textContent).toContain('+60')
-    expect(rewardDialog.textContent).toContain('Coins')
-    expect(rewardDialog.textContent).toContain('Neu freigeschaltet')
+    expect(rewardDialog.textContent).toContain('Alle Schritte erledigt')
+    expect(rewardDialog.textContent).not.toContain('XP')
+    expect(rewardDialog.textContent).not.toContain('freigeschaltet')
     fireEvent.click(screen.getByRole('button', { name: 'Weiterlernen' }))
 
     fireEvent.change(screen.getByLabelText('Wie viel Zeit hast du?'), {
@@ -275,23 +277,23 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     const afterRechecking = JSON.parse(localStorage.getItem('mission.gamification.v1') ?? 'null')
     const updatedMissionId = JSON.parse(localStorage.getItem('mission.saved-mission.v1') ?? 'null').mission.id
     expect(updatedMissionId).toBe(missionId)
-    expect(afterRechecking.xp).toBe(70)
-    expect(afterRechecking.coins).toBe(20)
-    expect(afterRechecking.ownedOrbIds).toHaveLength(1)
+    expect(afterRechecking.totalFocusMilliseconds).toBe(0)
+    expect(afterRechecking.coins).toBe(0)
+    expect(afterRechecking.ownedOrbIds).toHaveLength(0)
 
     cleanup()
     render(<App />)
     expect(screen.queryByRole('dialog', { name: 'Starker Abschluss.' })).toBeNull()
-    expect(JSON.parse(localStorage.getItem('mission.gamification.v1') ?? 'null').xp).toBe(70)
+    expect(JSON.parse(localStorage.getItem('mission.gamification.v1') ?? 'null').totalFocusMilliseconds).toBe(0)
   })
 
-  it('sperrt bereits belohnte Lernschritte auch bei veränderten IDs und neu formulierten Titeln', async () => {
+  it('erhält die Schrittzuordnung ohne Belohnung auch bei veränderten IDs und neu formulierten Titeln', async () => {
     render(<App />)
     await createMission('Java-Vererbung verstehen', 15)
     const oldMission = JSON.parse(localStorage.getItem('mission.saved-mission.v1') ?? 'null').mission
     const rewardedLearningStep = oldMission.steps.find((step: { kind: string }) => step.kind === 'learning')
     fireEvent.click(screen.getByRole('checkbox', { name: new RegExp(rewardedLearningStep.title) }))
-    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').xp).toBe(10)
+    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').totalFocusMilliseconds).toBe(0)
 
     installLearningPlanApiMock((request) => mockPlanResponse(request, null, [
       { title: 'Vererbungskonzepte abrufen', description: 'Erkläre Vererbung und überschreiben an einem Java-Beispiel.', kind: 'learning' },
@@ -305,7 +307,7 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     expect(updatedMission.steps[0].id).toBe(rewardedLearningStep.id)
     expect(updatedMission.steps[0].done).toBe(false)
     fireEvent.click(screen.getByRole('checkbox', { name: /Vererbungskonzepte abrufen/ }))
-    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').xp).toBe(10)
+    expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').totalFocusMilliseconds).toBe(0)
   })
 
   it('bietet alle optionalen Lernblockaden an und speichert die Auswahl im aktiven Plan', async () => {
@@ -380,7 +382,7 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     expect(JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null').selectedBackgroundId).not.toBe(DEFAULT_BACKGROUND_ID)
   })
 
-  it('zeigt bei einem Orb-Duplikat „Bereits vorhanden“ ohne Orb- oder XP-Extrabonus', async () => {
+  it('erhält vorhandene Orbs beim Abschluss ohne neuen Drop oder Coins', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0)
     localStorage.setItem(GAMIFICATION_STORAGE_KEY, JSON.stringify({
       ...initialGamificationState,
@@ -392,13 +394,12 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     fireEvent.click(screen.getAllByRole('checkbox')[1])
 
     const dialog = screen.getByRole('dialog', { name: 'Starker Abschluss.' })
-    expect(dialog.textContent).toContain('Bereits vorhanden')
-    expect(dialog.textContent).toContain('Morgenlicht')
-    expect(dialog.textContent).toContain('keine zusätzlichen XP oder Coins')
+    expect(dialog.textContent).toContain('Alle Schritte erledigt')
+    expect(dialog.textContent).not.toContain('XP')
     const state = JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY) ?? 'null')
     expect(state.ownedOrbIds).toEqual(['orb-common'])
-    expect(state.xp).toBe(70)
-    expect(state.coins).toBe(20)
+    expect(state.totalFocusMilliseconds).toBe(0)
+    expect(state.coins).toBe(0)
     expect(state.claimedMissionIds).toHaveLength(1)
   })
 

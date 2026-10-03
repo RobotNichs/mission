@@ -38,14 +38,18 @@ Wenn ein Detail für einen passenden Plan fehlt, zeigt Mission höchstens eine g
 - Lernschritte abhaken und den Fortschritt verfolgen
 - Countdown starten, pausieren und zurücksetzen
 - Einstellungen, Schritte und verbleibende Zeit lokal im Browser speichern (localStorage)
-- XP, Level, Coins und Orb-Sammlung; Belohnungen bleiben einmalig pro Schritt/Mission
+- Level aus gesammelter Fokuszeit: Level L beginnt bei `30 × (L - 1)²` Gesamtminuten
+- Ein Coin je voller Fokusminute; Teilminuten bleiben über Sitzungen erhalten
+- Abhaken und Missionsabschluss vergeben keine Coins oder neuen Orbs
 - Freigeschaltete Orbs ausrüsten und Mission Core damit optisch verändern
 - Kosmetische Hintergründe und Core-Effekte nur mit erspielten Coins kaufen; vor jedem Kauf wird bestätigt
 - Dark-Theme mit reduzierten Animationen bei `prefers-reduced-motion`
 
 Es gibt keine Anmeldung und keine Datenbank. Lernpläne und Gamification-Daten bleiben lokal im Browser; beim Löschen der Browserdaten werden sie entfernt. Der API-Schlüssel ist ausschließlich Serverkonfiguration.
 
-Ausgerüstete Orbs, gekaufte Kosmetik und aktive Darstellungen werden gemeinsam mit XP, Coins und der Sammlung in `mission.gamification.v1` gespeichert. Popups für Missionsbelohnungen sind nur für das gerade abgeschlossene Ereignis sichtbar und werden nach einem Reload nicht erneut geöffnet.
+Ausgerüstete Orbs, gekaufte Kosmetik und aktive Darstellungen werden gemeinsam mit Fokuszeit, Coins und der Sammlung in `mission.gamification.v1` gespeichert. Vorhandene XP werden einmalig als inaktives `legacyXp` archiviert und nicht in Fokuszeit umgerechnet. Beide bisherigen Speicherschlüssel und Lernplanmigrationen bleiben erhalten. Abschlussmeldungen erscheinen nur einmal pro Mission und werden nach einem Reload nicht erneut geöffnet.
+
+Fokuszeit zählt ausschließlich während eines laufenden Countdowns und höchstens bis zu dessen Ende. Pause, Reset und Planwechsel erhalten bereits gesammelte Zeit. Nach einem Reload startet der Timer pausiert; geschlossene Browserzeit wird nicht nachträglich vergütet. Eine exklusive Web-Locks-Sperre erlaubt nur einem Tab Änderungen und Fokusabrechnung. Weitere Tabs zeigen den gespeicherten Stand schreibgeschützt und übernehmen nach Freigabe pausiert. Dafür benötigt Mission einen Browser mit Web Locks unter HTTPS oder localhost. Fehlt die Unterstützung, bleibt die App zum Schutz der Daten schreibgeschützt.
 
 ## Wichtige Projektdateien
 

@@ -1,16 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import CoinShop from './components/CoinShop'
 import GamificationPanel from './components/GamificationPanel'
-import MissionRewardDialog, { type MissionReward } from './components/MissionRewardDialog'
+import MissionRewardDialog from './components/MissionRewardDialog'
 import {
-  awardMissionCompletion,
-  awardStepCompletion,
+  recordMissionCompletion,
+  addFocusTime,
+  recordStepCompletion,
   equipCosmetic,
   equipOrb,
   GAMIFICATION_STORAGE_KEY,
   loadGamificationState,
   purchaseCosmetic,
-  XP_PER_STEP,
 } from './services/gamification'
 import { generateLearningPlanWithStatus } from './services/learningPlanGenerator'
 import {
@@ -25,6 +25,7 @@ import {
   type LearningStep,
   type LearningStepKind,
 } from './types/learningPlan'
+import { acquireMissionWriter, advanceFocusSession, type FocusSession } from './services/focusTimer'
 import type { GamificationState } from './types/gamification'
 import { getStableStepRewardSlot, preserveStepProgress } from './services/learningPlanProgress'
 
@@ -160,6 +161,7 @@ function readSavedMission(): SavedAppState | null {
 }
 
 function formatTime(totalSeconds: number) {
+  totalSeconds = Math.ceil(totalSeconds)
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0')
   const seconds = (totalSeconds % 60).toString().padStart(2, '0')
   return `${minutes}:${seconds}`
@@ -175,45 +177,125 @@ function App() {
   const [remainingSeconds, setRemainingSeconds] = useState(saved?.remainingSeconds ?? 25 * 60)
   const [gamification, setGamification] = useState<GamificationState>(loadGamificationState)
   const [rewardNotice, setRewardNotice] = useState<string | null>(null)
-  const [missionReward, setMissionReward] = useState<MissionReward | null>(null)
+  const [showMissionCompletion, setShowMissionCompletion] = useState(false)
   const [generationNotice, setGenerationNotice] = useState<string | null>(null)
   const [pendingClarification, setPendingClarification] = useState<PendingClarification | null>(null)
   const [clarificationAnswer, setClarificationAnswer] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
-  const [deadline, setDeadline] = useState<number | null>(null)
+  const [canWrite, setCanWrite] = useState(false)
+  const [storageError, setStorageError] = useState<string | null>(null)
+  const writer = useRef(false)
+  const session = useRef<FocusSession | null>(null)
+  const game = useRef(gamification)
+  const appSnapshot = useRef<SavedAppState>({ form: { goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker }, mission, remainingSeconds })
+  const stopRef = useRef<() => void>(() => {})
+
+  function commitGamification(next: GamificationState) {
+    if (!writer.current) return
+    localStorage.setItem(GAMIFICATION_STORAGE_KEY, JSON.stringify(next))
+    game.current = next
+    setGamification(next)
+  }
+
+  function settleTimer() {
+    if (!writer.current || !session.current) return
+    const advanced = advanceFocusSession(session.current, performance.now())
+    commitGamification(addFocusTime(game.current, advanced.elapsedMilliseconds))
+    session.current = advanced.session
+    const seconds = advanced.session.remainingMilliseconds / 1000
+    appSnapshot.current = { ...appSnapshot.current, remainingSeconds: seconds }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(appSnapshot.current))
+    setRemainingSeconds(seconds)
+    if (seconds === 0) { session.current = null; setIsRunning(false) }
+  }
+
+  function stopTimer() {
+    settleTimer()
+    session.current = null
+    setIsRunning(false)
+  }
+  stopRef.current = stopTimer
 
   const steps = mission?.steps ?? []
   const completed = steps.filter((step) => step.done).length
   const progress = steps.length ? Math.round((completed / steps.length) * 100) : 0
   const hasMission = mission !== null
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      form: {
-        goal: task,
-        timeBudgetMinutes: minutes,
-        energyLevel: energy,
-        learningBlocker: blocker,
-      },
-      mission,
-      remainingSeconds,
-    } satisfies SavedAppState))
-  }, [task, minutes, energy, blocker, mission, remainingSeconds])
+  function failStorage() {
+    session.current = null
+    writer.current = false
+    setCanWrite(false)
+    setIsRunning(false)
+    setStorageError('Die lokale Speicherung ist nicht verfügbar. Der Timer wurde pausiert; Änderungen sind gesperrt.')
+  }
 
   useEffect(() => {
-    localStorage.setItem(GAMIFICATION_STORAGE_KEY, JSON.stringify(gamification))
-  }, [gamification])
+    const snapshot = { form: { goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker }, mission, remainingSeconds }
+    appSnapshot.current = snapshot
+    if (!canWrite || !writer.current) return
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot)) } catch { failStorage() }
+  }, [task, minutes, energy, blocker, mission, remainingSeconds, canWrite])
 
   useEffect(() => {
-    if (!isRunning || deadline === null) return
+    const hydrate = () => {
+      const latest = readSavedMission()
+      if (latest) {
+        setTask(latest.form.goal)
+        setMinutes(latest.form.timeBudgetMinutes)
+        setEnergy(latest.form.energyLevel)
+        setBlocker(latest.form.learningBlocker)
+        setMission(latest.mission)
+        setRemainingSeconds(latest.remainingSeconds)
+        appSnapshot.current = latest
+      }
+      game.current = loadGamificationState(true)
+      setGamification(game.current)
+    }
+    const sync = () => {
+      if (!writer.current) {
+        try { hydrate() } catch { failStorage() }
+      }
+    }
+    window.addEventListener('storage', sync)
+    if (!navigator.locks) {
+      setStorageError('Dieser Browser unterstützt keine sichere Tab-Sperre. Bitte öffne Mission in einem aktuellen Browser unter HTTPS oder localhost.')
+      return () => window.removeEventListener('storage', sync)
+    }
+    const release = acquireMissionWriter(navigator.locks, () => {
+      try {
+        hydrate()
+        writer.current = true
+        commitGamification(game.current)
+        setCanWrite(true)
+      } catch { failStorage() }
+    }, failStorage)
+    const leave = () => {
+      if (writer.current) {
+        try { stopRef.current() } catch { failStorage() }
+      }
+      writer.current = false
+      setCanWrite(false)
+      release()
+    }
+    window.addEventListener('pagehide', leave)
+    const returnFromCache = (event: PageTransitionEvent) => { if (event.persisted) window.location.reload() }
+    window.addEventListener('pageshow', returnFromCache)
+    return () => {
+      leave()
+      window.removeEventListener('storage', sync)
+      window.removeEventListener('pagehide', leave)
+      window.removeEventListener('pageshow', returnFromCache)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isRunning) return
     const interval = window.setInterval(() => {
-      const next = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
-      setRemainingSeconds(next)
-      if (next === 0) setIsRunning(false)
+      try { settleTimer() } catch { failStorage() }
     }, 250)
     return () => window.clearInterval(interval)
-  }, [isRunning, deadline])
+  }, [isRunning])
 
   async function generateAndApplyPlan(input: LearningPlanRequest) {
     const generation = await generateLearningPlanWithStatus(input)
@@ -233,6 +315,8 @@ function App() {
       return
     }
 
+    if (!writer.current) return
+    stopTimer()
     const sameMission = mission?.goal.trim() === input.goal.trim()
     const reconciledSteps = preserveStepProgress(
       generation.plan.steps,
@@ -248,14 +332,13 @@ function App() {
     })
     setRemainingSeconds(input.timeBudgetMinutes * 60)
     setIsRunning(false)
-    setDeadline(null)
     setPendingClarification(null)
     setClarificationAnswer('')
   }
 
   async function createMission(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!task.trim() || isGenerating || pendingClarification) return
+    if (!writer.current || !task.trim() || isGenerating || pendingClarification) return
     setIsGenerating(true)
     try {
       await generateAndApplyPlan({
@@ -271,7 +354,7 @@ function App() {
 
   async function finishClarification(event: React.FormEvent<HTMLFormElement>, skipped: boolean) {
     event.preventDefault()
-    if (!pendingClarification || isGenerating || (!skipped && !clarificationAnswer.trim())) return
+    if (!writer.current || !pendingClarification || isGenerating || (!skipped && !clarificationAnswer.trim())) return
     const clarification: LearningPlanClarification = {
       question: pendingClarification.question,
       answer: skipped ? '' : clarificationAnswer.trim(),
@@ -286,7 +369,7 @@ function App() {
   }
 
   function toggleStep(id: string) {
-    if (!mission) return
+    if (!writer.current || !mission) return
     const currentStep = mission.steps.find((step) => step.id === id)
     if (!currentStep) return
 
@@ -299,61 +382,38 @@ function App() {
 
     const completesMission = mission.steps.every((step) => step.id === id || step.done)
     const stepIndex = mission.steps.findIndex((step) => step.id === id)
-    const stepResult = awardStepCompletion(
-      gamification,
-      mission.id,
-      id,
-      getStableStepRewardSlot(mission.steps, stepIndex),
-    )
-    let nextGamification = stepResult.state
-    const notices = stepResult.xpAdded > 0 ? [`+${XP_PER_STEP} XP`] : []
-
-    if (completesMission) {
-      const missionResult = awardMissionCompletion(nextGamification, mission.id, Math.random())
-      nextGamification = missionResult.state
-      if (missionResult.awarded && missionResult.orb) {
-        const orbStatus = missionResult.orbWasAlreadyOwned ? 'bereits gesammelt' : 'neu freigeschaltet'
-        notices.push(`Mission: +${missionResult.xpAdded} XP, +${missionResult.coinsAdded} Coins · ${missionResult.orb.name} ${orbStatus}`)
-        setMissionReward({
-          xpAdded: stepResult.xpAdded + missionResult.xpAdded,
-          coinsAdded: missionResult.coinsAdded,
-          orb: missionResult.orb,
-          orbWasAlreadyOwned: missionResult.orbWasAlreadyOwned,
-        })
-      }
-    }
-
-    setGamification(nextGamification)
-    setRewardNotice(notices.length > 0 ? notices.join(' · ') : 'Belohnung für diesen Schritt bereits erhalten.')
+    const next = recordStepCompletion(game.current, mission.id, id, getStableStepRewardSlot(mission.steps, stepIndex))
+    const firstCompletion = completesMission && !next.claimedMissionIds.includes(mission.id)
+    commitGamification(completesMission ? recordMissionCompletion(next, mission.id) : next)
+    if (firstCompletion) setShowMissionCompletion(true)
+    setRewardNotice('Level und Coins wachsen ausschließlich durch laufende Fokuszeit.')
   }
 
   function handleCosmeticPurchase(itemId: string) {
-    const result = purchaseCosmetic(gamification, itemId)
-    setGamification(result.state)
+    if (!writer.current) return 'insufficient-funds' as const
+    const result = purchaseCosmetic(game.current, itemId)
+    commitGamification(result.state)
     return result.status
   }
 
   function toggleTimer() {
-    if (isRunning) {
-      const left = deadline === null ? remainingSeconds : Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
-      setRemainingSeconds(left)
-      setIsRunning(false)
-      setDeadline(null)
-      return
-    }
+    if (!writer.current) return
+    if (session.current) { stopTimer(); return }
     const duration = remainingSeconds > 0 ? remainingSeconds : (mission?.timeBudgetMinutes ?? 25) * 60
+    session.current = { lastTime: performance.now(), remainingMilliseconds: duration * 1000 }
     setRemainingSeconds(duration)
-    setDeadline(Date.now() + duration * 1000)
     setIsRunning(true)
   }
 
   function resetTimer() {
-    setIsRunning(false)
-    setDeadline(null)
+    if (!writer.current) return
+    stopTimer()
     setRemainingSeconds((mission?.timeBudgetMinutes ?? 25) * 60)
   }
 
   return (
+    <fieldset className="mission-writer-surface" disabled={!canWrite}>
+    {!canWrite && <p role="status" className="writer-notice">{storageError ?? 'Mission ist in einem anderen Tab aktiv. Dieser Tab zeigt den gespeicherten Stand und übernimmt nach dessen Schließen.'}</p>}
     <main className={`app-shell theme-${gamification.selectedBackgroundId}`}>
       <header className="topbar">
         <a className="brand" href="#start" aria-label="Mission Startseite">
@@ -378,13 +438,13 @@ function App() {
       <GamificationPanel
         state={gamification}
         rewardNotice={rewardNotice}
-        onEquipOrb={(orbId) => setGamification((current) => equipOrb(current, orbId))}
+        onEquipOrb={(orbId) => { if (writer.current) commitGamification(equipOrb(game.current, orbId)) }}
       />
 
       <CoinShop
         state={gamification}
         onPurchase={handleCosmeticPurchase}
-        onEquip={(itemId) => setGamification((current) => equipCosmetic(current, itemId))}
+        onEquip={(itemId) => { if (writer.current) commitGamification(equipCosmetic(game.current, itemId)) }}
       />
 
       <div className="workspace-grid">
@@ -594,8 +654,9 @@ function App() {
       </section>
 
       <footer className="footer"><span>MISSION <i>·</i> DEIN LERNWEG, IN DEINEM TEMPO.</span><span>Mit Ruhe. Mit Fokus. Mit dir.</span></footer>
-      {missionReward && <MissionRewardDialog reward={missionReward} onClose={() => setMissionReward(null)} />}
+      {showMissionCompletion && <MissionRewardDialog onClose={() => setShowMissionCompletion(false)} />}
     </main>
+    </fieldset>
   )
 }
 

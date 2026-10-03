@@ -65,9 +65,9 @@ h1 span { color: #598167; }
 .coin-count strong { color: #545344; font-size: 12px; }
 .coin-count > span:last-child { color: #96958a; font-size: 9px; }
 .coin-icon { color: #d3ac58; font-size: 16px; text-shadow: 0 1px 5px rgba(211,172,88,.35); }
-.xp-copy { display: flex; justify-content: space-between; gap: 8px; margin: 13px 0 7px; color: #8d9288; font-size: 9px; }
-.xp-track { height: 6px; overflow: hidden; border-radius: 99px; background: #edf0e9; }
-.xp-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #a6c88f, #56846a); transition: width .35s ease; }
+.focus-copy { display: flex; justify-content: space-between; gap: 8px; margin: 13px 0 7px; color: #8d9288; font-size: 9px; }
+.focus-track { height: 6px; overflow: hidden; border-radius: 99px; background: #edf0e9; }
+.focus-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #a6c88f, #56846a); transition: width .35s ease; }
 .reward-notice { min-height: 13px; margin: 8px 0 0; color: #65806a; font-size: 9px; line-height: 1.45; }
 .collection-column { min-width: 0; padding-left: 19px; border-left: 1px solid #eff0ec; }
 .collection-title-row h2 span { margin-left: 3px; color: #9a9d94; font: 500 10px 'Segoe UI', sans-serif; }
@@ -214,7 +214,7 @@ select { width: 100%; height: 41px; appearance: none; padding: 0 36px; border: 1
   .energy-label { font-size: 9px; }
   .energy-note { font-size: 8px; }
   .gamification-panel { grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 14px 12px; }
-  .xp-copy { flex-direction: column; gap: 3px; }
+  .focus-copy { flex-direction: column; gap: 3px; }
   .orb-collection { gap: 5px; }
   .orb-card { padding-right: 1px; padding-left: 1px; }
   .timer-panel { grid-template-columns: 1fr; gap: 12px; }
@@ -277,9 +277,9 @@ h1 span { color: #a99aff; }
 .coin-count strong { color: #f4e8c9; }
 .coin-count > span:last-child { color: #aab7c8; }
 .coin-icon { color: #f4c96d; }
-.xp-copy { color: #a7b5c8; }
-.xp-track { background: #263348; }
-.xp-track span { background: linear-gradient(90deg, #b192ff, #59dbe5); }
+.focus-copy { color: #a7b5c8; }
+.focus-track { background: #263348; }
+.focus-track span { background: linear-gradient(90deg, #b192ff, #59dbe5); }
 .reward-notice { color: #8bdfe4; }
 .collection-column { border-left-color: var(--line); }
 .collection-title-row h2 span { color: #99a8bd; }
@@ -438,3 +438,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-
   .mission-core { animation: none; }
   .core-orbit { animation: none; }
 }
+
+.mission-writer-surface { min-width: 0; margin: 0; padding: 0; border: 0; }
+.writer-notice { margin: 12px auto; width: min(1136px, calc(100% - 32px)); color: var(--ink); font-size: 13px; line-height: 1.5; }
