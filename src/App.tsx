@@ -1,3 +1,5 @@
+import PlanEditor from './components/PlanEditor'
+import { applyPlanTiming } from './services/planEditor'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import OrbCrateShop from './components/OrbCrateShop'
 import GamificationPanel from './components/GamificationPanel'
@@ -36,7 +38,7 @@ import { isLocalDevelopment } from './services/developmentMode'
 const GamificationDebug = import.meta.env.DEV ? lazy(() => import('./components/GamificationDebug')) : null
 
 type FormSettings = LearningPlanInput
-type SavedAppState = { form: FormSettings; mission: LearningPlan | null; remainingSeconds: number }
+type SavedAppState = { form: FormSettings; mission: LearningPlan | null; remainingSeconds: number; elapsedSeconds?: number }
 type PendingClarification = { question: string; input: LearningPlanInput }
 
 const STORAGE_KEY = 'mission.saved-mission.v1'
@@ -77,6 +79,7 @@ function normalizeForm(value: unknown, fallback: LearningPlan | null): FormSetti
     timeBudgetMinutes,
     energyLevel: energyLevel as EnergyLevel,
     learningBlocker: learningBlocker as LearningBlocker | null,
+    ...(typeof value.learningBlockerDetails === 'string' && value.learningBlockerDetails.length <= 240 ? { learningBlockerDetails: value.learningBlockerDetails } : {}),
   }
 }
 
@@ -86,6 +89,7 @@ function planToForm(plan: LearningPlan): FormSettings {
     timeBudgetMinutes: plan.timeBudgetMinutes,
     energyLevel: plan.energyLevel,
     learningBlocker: plan.learningBlocker,
+    learningBlockerDetails: plan.learningBlockerDetails,
   }
 }
 
@@ -137,6 +141,8 @@ function normalizePlan(value: unknown): LearningPlan | null {
     energyLevel: energyLevel as EnergyLevel,
     learningBlocker: learningBlocker as LearningBlocker | null,
     steps,
+    timeMode: value.timeMode === 'automatic' || value.timeMode === 'stopwatch' ? value.timeMode : 'manual',
+    ...(typeof value.learningBlockerDetails === 'string' && value.learningBlockerDetails.length <= 240 ? { learningBlockerDetails: value.learningBlockerDetails } : {}),
   }
 }
 
@@ -157,6 +163,7 @@ function readSavedMission(): SavedAppState | null {
     return {
       form,
       mission,
+      elapsedSeconds: typeof parsed.elapsedSeconds === 'number' && Number.isFinite(parsed.elapsedSeconds) && parsed.elapsedSeconds >= 0 ? parsed.elapsedSeconds : Math.max(0, (mission?.timeBudgetMinutes ?? 25) * 60 - (typeof storedSeconds === 'number' ? storedSeconds : (mission?.timeBudgetMinutes ?? 25) * 60)),
       remainingSeconds: typeof storedSeconds === 'number' && Number.isFinite(storedSeconds) && storedSeconds >= 0
         ? storedSeconds
         : (mission?.timeBudgetMinutes ?? 25) * 60,
@@ -179,6 +186,9 @@ function App() {
   const [minutes, setMinutes] = useState(saved?.form.timeBudgetMinutes ?? 25)
   const [energy, setEnergy] = useState<EnergyLevel>(saved?.form.energyLevel ?? 'medium')
   const [blocker, setBlocker] = useState<LearningBlocker | null>(saved?.form.learningBlocker ?? null)
+  const [blockerDetails, setBlockerDetails] = useState(saved?.form.learningBlockerDetails ?? '')
+  const [elapsedSeconds, setElapsedSeconds] = useState(saved?.elapsedSeconds ?? 0)
+  const [editingPlan, setEditingPlan] = useState<LearningPlan | null>(null)
   const [mission, setMission] = useState<LearningPlan | null>(saved?.mission ?? null)
   const [remainingSeconds, setRemainingSeconds] = useState(saved?.remainingSeconds ?? 25 * 60)
   const [gamification, setGamification] = useState<GamificationState>(loadGamificationState)
@@ -197,7 +207,7 @@ function App() {
   const writer = useRef(false)
   const session = useRef<FocusSession | null>(null)
   const game = useRef(gamification)
-  const appSnapshot = useRef<SavedAppState>({ form: { goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker }, mission, remainingSeconds })
+  const appSnapshot = useRef<SavedAppState>({ form: { goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds })
   const stopRef = useRef<() => void>(() => {})
 
   function commitGamification(next: GamificationState) {
@@ -213,10 +223,12 @@ function App() {
     commitGamification(addFocusTime(game.current, advanced.elapsedMilliseconds))
     session.current = advanced.session
     const seconds = advanced.session.remainingMilliseconds / 1000
-    appSnapshot.current = { ...appSnapshot.current, remainingSeconds: seconds }
+    const elapsed = (appSnapshot.current.elapsedSeconds ?? 0) + advanced.elapsedMilliseconds / 1000
+    setElapsedSeconds(elapsed)
+    appSnapshot.current = { ...appSnapshot.current, remainingSeconds: seconds, elapsedSeconds: elapsed }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appSnapshot.current))
     setRemainingSeconds(seconds)
-    if (seconds === 0) { session.current = null; setIsRunning(false) }
+    if (!advanced.session.stopwatch && seconds === 0) { session.current = null; setIsRunning(false) }
   }
 
   function stopTimer() {
@@ -245,11 +257,11 @@ function App() {
   }
 
   useEffect(() => {
-    const snapshot = { form: { goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker }, mission, remainingSeconds }
+    const snapshot = { form: { goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds }
     appSnapshot.current = snapshot
     if (!canWrite || !writer.current) return
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot)) } catch { failStorage() }
-  }, [task, minutes, energy, blocker, mission, remainingSeconds, canWrite])
+  }, [task, minutes, energy, blocker, blockerDetails, mission, remainingSeconds, elapsedSeconds, canWrite])
 
   useEffect(() => {
     const hydrate = () => {
@@ -259,8 +271,11 @@ function App() {
         setMinutes(latest.form.timeBudgetMinutes)
         setEnergy(latest.form.energyLevel)
         setBlocker(latest.form.learningBlocker)
+        setBlockerDetails(latest.form.learningBlockerDetails ?? '')
+        setElapsedSeconds(latest.elapsedSeconds ?? 0)
         setMission(latest.mission)
         setRemainingSeconds(latest.remainingSeconds)
+        setEditingPlan(null)
         appSnapshot.current = latest
       }
       game.current = loadGamificationState(true)
@@ -323,6 +338,7 @@ function App() {
           timeBudgetMinutes: input.timeBudgetMinutes,
           energyLevel: input.energyLevel,
           learningBlocker: input.learningBlocker,
+          learningBlockerDetails: input.learningBlockerDetails,
         },
       })
       setClarificationAnswer('')
@@ -330,7 +346,9 @@ function App() {
     }
 
     if (!writer.current) return
+    if (session.current && !window.confirm('Laufende Session pausieren und Lernplan ersetzen? Verdiente Fokuszeit bleibt erhalten.')) return
     stopTimer()
+    setElapsedSeconds(0)
     const sameMission = mission?.goal.trim() === input.goal.trim()
     const reconciledSteps = preserveStepProgress(
       generation.plan.steps,
@@ -341,6 +359,7 @@ function App() {
     )
     setMission({
       ...generation.plan,
+      ...(input.learningBlockerDetails !== undefined ? { learningBlockerDetails: input.learningBlockerDetails } : {}),
       id: sameMission && mission ? mission.id : generation.plan.id,
       steps: reconciledSteps,
     })
@@ -361,6 +380,7 @@ function App() {
         timeBudgetMinutes: minutes,
         energyLevel: energy,
         learningBlocker: blocker,
+        ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails.trim() } : {}),
       })
     } finally {
       setIsGenerating(false)
@@ -412,11 +432,43 @@ function App() {
     try { commitGamification(result.state); return result } catch { failStorage(); return unavailable }
   }
 
+  function saveEditedPlan(plan: LearningPlan) {
+    if (!writer.current) return
+    if (session.current && !window.confirm('Laufende Session pausieren und diese Änderungen übernehmen? Verdiente Fokuszeit bleibt erhalten.')) return
+    try {
+      stopTimer()
+      const elapsed = plan.id === mission?.id ? (appSnapshot.current.elapsedSeconds ?? 0) : 0
+      const steps = plan.steps.map(step => {
+        const current = plan.id === mission?.id ? mission.steps.find(s => s.id === step.id) : undefined
+        return current ? { ...step, done: current.done } : step
+      })
+      const next = applyPlanTiming({ ...plan, steps }, elapsed)
+      setMission(next.plan)
+      setRemainingSeconds(next.remainingSeconds)
+      setElapsedSeconds(elapsed)
+      appSnapshot.current = { ...appSnapshot.current, mission: next.plan, remainingSeconds: next.remainingSeconds, elapsedSeconds: elapsed }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appSnapshot.current))
+      setEditingPlan(null)
+      setGenerationNotice('Dein bearbeiteter Plan wurde lokal gespeichert.')
+    } catch { failStorage() }
+  }
+
+  function createOwnPlan() {
+    if (!writer.current || pendingClarification || isGenerating) return
+    setEditingPlan({ id: createLearningPlanId(), goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker,
+      ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails.trim() } : {}), timeMode: 'automatic',
+      steps: [{ id: createLearningPlanId(), title: '', description: '', minutes: 5, kind: 'learning', done: false }] })
+  }
+
   function toggleTimer() {
     if (!writer.current) return
     if (session.current) { stopTimer(); return }
-    const duration = remainingSeconds > 0 ? remainingSeconds : (mission?.timeBudgetMinutes ?? 25) * 60
-    session.current = { lastTime: performance.now(), remainingMilliseconds: duration * 1000 }
+    const duration = mission?.timeMode === 'stopwatch' ? 0 : remainingSeconds > 0 ? remainingSeconds : (mission?.timeBudgetMinutes ?? 25) * 60
+    if (remainingSeconds === 0 && mission?.timeMode !== 'stopwatch') {
+      setElapsedSeconds(0)
+      appSnapshot.current = { ...appSnapshot.current, elapsedSeconds: 0 }
+    }
+    session.current = { lastTime: performance.now(), remainingMilliseconds: duration * 1000, stopwatch: mission?.timeMode === 'stopwatch' }
     setRemainingSeconds(duration)
     setIsRunning(true)
     setIsFocusMode(true)
@@ -425,7 +477,8 @@ function App() {
   function resetTimer() {
     if (!writer.current) return
     stopTimer()
-    setRemainingSeconds((mission?.timeBudgetMinutes ?? 25) * 60)
+    setElapsedSeconds(0)
+    setRemainingSeconds(mission?.timeMode === 'stopwatch' ? 0 : (mission?.timeBudgetMinutes ?? 25) * 60)
   }
 
   function leaveFocusMode() {
@@ -436,8 +489,9 @@ function App() {
   if (isFocusMode) return (
     <>
       <FocusMode mission={mission} orb={orbCollection.find((orb) => orb.id === gamification.equippedOrbId) ?? defaultOrb}
-        countdown={formatTime(remainingSeconds)} isRunning={isRunning} finished={remainingSeconds === 0}
+        countdown={formatTime(mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)} stopwatch={mission?.timeMode === 'stopwatch'} isRunning={isRunning} finished={mission?.timeMode !== 'stopwatch' && remainingSeconds === 0}
         enabled={canWrite} error={storageError} onToggleTimer={toggleTimer} onResetTimer={resetTimer}
+        onEditPlan={mission ? () => { setEditingPlan(mission); setIsFocusMode(false) } : undefined}
         onToggleStep={toggleStep} onLeave={leaveFocusMode} />
       {showMissionCompletion && <MissionRewardDialog onClose={() => setShowMissionCompletion(false)} />}
     </>
@@ -570,6 +624,10 @@ function App() {
               <span className="select-chevron">⌄</span>
             </div>
 
+            {blocker === 'other' && <><label className="field-label" htmlFor="blocker-details">Was erschwert dir das Lernen?</label>
+              <textarea id="blocker-details" maxLength={240} value={blockerDetails} disabled={pendingClarification !== null || isGenerating} onChange={e => setBlockerDetails(e.target.value)} />
+              <p className="field-hint">Optional, maximal 240 Zeichen. Ohne Text wird Sonstiges allgemein berücksichtigt.</p></>}
+            {!pendingClarification && <button type="button" className="clarification-skip" onClick={createOwnPlan} disabled={isGenerating}>Eigenen Plan erstellen</button>}
             {!pendingClarification && (
               <button className="primary-button" type="submit" disabled={!task.trim() || isGenerating}>
                 <span>{isGenerating ? 'Plan wird erstellt …' : hasMission ? 'Mission aktualisieren' : 'Mission planen'}</span>
@@ -621,9 +679,12 @@ function App() {
               <p className="section-kicker">DEIN FAHRPLAN</p>
               <h2 id="plan-heading">Schritt für Schritt</h2>
             </div>
-            {mission && <span className="plan-pill">{mission.timeBudgetMinutes} MIN</span>}
+            {mission && <span className="plan-pill">{mission.timeMode === 'stopwatch' ? 'STOPPUHR' : `${mission.timeBudgetMinutes} MIN`}</span>}
           </div>
 
+          {editingPlan && <PlanEditor initial={editingPlan} onSave={saveEditedPlan} onCancel={() => setEditingPlan(null)} disabled={!canWrite || isGenerating || pendingClarification !== null} />}
+          {mission && !editingPlan && <><p className="generation-notice">Alle Schritte sind bearbeitbar. KI-Pläne sind Vorschläge. Du entscheidest über deinen Plan.</p>
+            <button type="button" className="clarification-skip" disabled={isGenerating || pendingClarification !== null} onClick={() => setEditingPlan(mission)}>Lernplan bearbeiten</button></>}
           {mission ? (
             <>
               <div className="plan-summary">
@@ -677,12 +738,12 @@ function App() {
           <div className="timer-icon">◷</div>
           <div><p className="section-kicker">BLEIB IM FLOW</p><h2>Zeit für deinen Fokus.</h2></div>
         </div>
-        <div className="timer-clock" aria-live="polite" aria-label={`Verbleibende Zeit: ${formatTime(remainingSeconds)}`}>
-          <span>{formatTime(remainingSeconds)}</span><small>MIN : SEK</small>
+        <div className="timer-clock" aria-live="polite" aria-label={`${mission?.timeMode === 'stopwatch' ? 'Vergangene' : 'Verbleibende'} Zeit: ${formatTime(mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)}`}>
+          <span>{formatTime(mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)}</span><small>MIN : SEK</small>
         </div>
         <div className="timer-controls">
           <button ref={normalTimerButton} className="timer-button" type="button" onClick={toggleTimer}>
-            <span>{isRunning ? 'Ⅱ' : '▶'}</span>{isRunning ? 'Pause' : remainingSeconds === 0 ? 'Weiter' : 'Start'}
+            <span>{isRunning ? 'Ⅱ' : '▶'}</span>{isRunning ? 'Pause' : mission?.timeMode === 'stopwatch' ? elapsedSeconds > 0 ? 'Fortsetzen' : 'Start' : remainingSeconds === 0 ? 'Weiter' : 'Start'}
           </button>
           <button className="reset-button" type="button" onClick={resetTimer} aria-label="Timer zurücksetzen" title="Timer zurücksetzen">↺</button>
         </div>

@@ -27,9 +27,11 @@ export type LearningPlan = {
   energyLevel: EnergyLevel
   learningBlocker: LearningBlocker | null
   steps: LearningStep[]
+  timeMode?: 'automatic' | 'manual' | 'stopwatch'
+  learningBlockerDetails?: string
 }
 
-export type LearningPlanInput = Omit<LearningPlan, 'id' | 'steps'>
+export type LearningPlanInput = Omit<LearningPlan, 'id' | 'steps' | 'timeMode'>
 export type LearningPlanClarification = {
   question: string
   answer: string

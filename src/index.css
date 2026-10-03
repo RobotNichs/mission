@@ -532,3 +532,12 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-
   .focus-orb-stage.is-running .focus-orb, .focus-orb-stage.is-finished::after { animation: none; transition: none; }
   .focus-orb-stage.is-finished::after { opacity: .35; }
 }
+/* Local plan editing uses the existing dark palette and native keyboard controls. */
+.plan-editor { margin: 1rem 0; }
+.plan-editor fieldset { border: 1px solid #34404a; border-radius: 12px; padding: 1rem; margin: .75rem 0; min-width: 0; }
+.plan-editor label { display: grid; gap: .4rem; margin: .75rem 0; }
+.plan-editor input, .plan-editor textarea, .plan-editor select { width: 100%; box-sizing: border-box; background: #121a20; color: #eef4f4; border: 1px solid #43505a; border-radius: 8px; padding: .6rem; font: inherit; }
+.editor-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.editor-actions button { background: #23333a; color: #eef4f4; border: 1px solid #43505a; border-radius: 8px; padding: .6rem; cursor: pointer; }
+.editor-actions button:disabled { opacity: .4; }
+.plan-editor :focus-visible { outline: 2px solid #97e5c9; outline-offset: 3px; }

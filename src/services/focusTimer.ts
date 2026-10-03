@@ -1,15 +1,17 @@
-export type FocusSession = { lastTime: number; remainingMilliseconds: number }
+export type FocusSession = { lastTime: number; remainingMilliseconds: number; stopwatch?: boolean; elapsedMilliseconds?: number }
 
 // A monotonic clock is supplied by the caller. Persisted timestamps are never resumed.
 export function advanceFocusSession(session: FocusSession, now: number) {
   const elapsedMilliseconds = Number.isFinite(now)
-    ? Math.min(session.remainingMilliseconds, Math.max(0, Math.floor(now - session.lastTime)))
+    ? Math.min(session.stopwatch ? Number.MAX_SAFE_INTEGER : session.remainingMilliseconds, Math.max(0, Math.floor(now - session.lastTime)))
     : 0
   return {
     elapsedMilliseconds,
     session: {
+      ...session,
       lastTime: session.lastTime + elapsedMilliseconds,
-      remainingMilliseconds: session.remainingMilliseconds - elapsedMilliseconds,
+      remainingMilliseconds: session.stopwatch ? session.remainingMilliseconds : session.remainingMilliseconds - elapsedMilliseconds,
+      ...(session.stopwatch ? { elapsedMilliseconds: (session.elapsedMilliseconds ?? 0) + elapsedMilliseconds } : {}),
     },
   }
 }

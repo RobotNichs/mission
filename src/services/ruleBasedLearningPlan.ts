@@ -42,7 +42,7 @@ export function generateRuleBasedLearningPlan(input: LearningPlanRequest): Learn
 
   const steps: LearningStep[] = Array.from({ length: count }, (_, index) => {
     const idea = stepIdeas[index % stepIdeas.length]
-    const blockerHint = index === guidanceIndex && guidance ? ` ${guidance.text}` : ''
+    const blockerHint = index === guidanceIndex && guidance ? ` ${guidance.text}${input.learningBlockerDetails ? ` Deine Lernblockade: „${input.learningBlockerDetails}“.` : ''}` : ''
     return {
       id: `${planId}-step-${index + 1}`,
       title: idea.title,

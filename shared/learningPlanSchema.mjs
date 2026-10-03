@@ -44,7 +44,8 @@ function isTopicSpecific(goal, topicFocus, title, description) {
 
 export function validatePlanInput(value) {
   return isRecord(value)
-    && Object.keys(value).every((key) => ['goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'clarification'].includes(key))
+    && Object.keys(value).every((key) => ['goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'learningBlockerDetails', 'clarification'].includes(key))
+    && (value.learningBlockerDetails === undefined || (value.learningBlocker === 'other' && typeof value.learningBlockerDetails === 'string' && value.learningBlockerDetails.length <= 240))
     && typeof value.goal === 'string'
     && value.goal.trim().length > 0
     && value.goal.length <= 280

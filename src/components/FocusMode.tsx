@@ -7,6 +7,7 @@ type Props = {
   mission: LearningPlan | null
   orb: OrbDefinition
   countdown: string
+  stopwatch?: boolean
   isRunning: boolean
   finished: boolean
   enabled: boolean
@@ -15,10 +16,11 @@ type Props = {
   onResetTimer: () => void
   onToggleStep: (id: string) => void
   onLeave: () => void
+  onEditPlan?: () => void
 }
 
-export default function FocusMode({ mission, orb, countdown, isRunning, finished, enabled, error,
-  onToggleTimer, onResetTimer, onToggleStep, onLeave }: Props) {
+export default function FocusMode({ mission, orb, countdown, stopwatch, isRunning, finished, enabled, error,
+  onToggleTimer, onResetTimer, onToggleStep, onLeave, onEditPlan }: Props) {
   const heading = useRef<HTMLHeadingElement>(null)
   const leave = useRef(onLeave)
   leave.current = onLeave
@@ -39,12 +41,13 @@ export default function FocusMode({ mission, orb, countdown, isRunning, finished
     <main className="focus-mode" aria-label="Fokusmodus">
       <div className="focus-topline"><span>MISSION · FOKUS</span>
         <button className="focus-leave" type="button" onClick={onLeave}>Fokusmodus verlassen</button></div>
+      {onEditPlan && <button className="focus-leave" type="button" disabled={!enabled} onClick={onEditPlan}>Lernplan bearbeiten</button>}
       {error && <p className="writer-notice" role="alert">{error}</p>}
       <section className="focus-session" aria-labelledby="focus-title">
         <h1 id="focus-title" className="focus-title" ref={heading} tabIndex={-1}>Ein Moment für deinen Fokus.</h1>
         <div className={`focus-orb-stage ${isRunning ? 'is-running' : ''} ${finished ? 'is-finished' : ''}`}>
           <OrbVisual orb={orb} className="focus-orb" label={orb.name} />
-          <div className="focus-countdown" role="timer" aria-label={`Verbleibende Zeit: ${countdown}`}>
+          <div className="focus-countdown" role="timer" aria-label={`${stopwatch ? 'Vergangene' : 'Verbleibende'} Zeit: ${countdown}`}>
             <strong>{countdown}</strong><span>MIN : SEK</span>
           </div>
         </div>
