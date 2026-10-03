@@ -61,27 +61,35 @@ export function validatePlanInput(value) {
     ))
 }
 
-export function validateAiPlanDraft(value, input) {
-  if (!hasExactKeys(value, ['clarifyingQuestion', 'steps']) || !validQuestion(value.clarifyingQuestion)) return false
-  if (input.clarification && value.clarifyingQuestion !== null) return false
-  if (!Array.isArray(value.steps) || value.steps.length < 1 || value.steps.length > 12) return false
+export function diagnoseAiPlanDraft(value, input) {
+  if (!hasExactKeys(value, ['clarifyingQuestion', 'steps'])) return 'invalid_response_structure'
+  if (!validQuestion(value.clarifyingQuestion)) return 'invalid_question'
+  if (input.clarification && value.clarifyingQuestion !== null) return 'followup_question_forbidden'
+  if (!Array.isArray(value.steps) || value.steps.length < 1 || value.steps.length > 12) return 'invalid_step_count'
 
   let totalMinutes = 0
   let hasLearningActivity = false
   for (const step of value.steps) {
-    if (!hasExactKeys(step, ['title', 'description', 'minutes', 'kind', 'topicFocus'])) return false
-    if (typeof step.title !== 'string' || step.title.trim().length === 0 || step.title.length > 90) return false
-    if (typeof step.description !== 'string' || step.description.trim().length === 0 || step.description.length > 600) return false
-    if (!Number.isInteger(step.minutes) || step.minutes < 1 || step.minutes > input.timeBudgetMinutes) return false
+    if (!hasExactKeys(step, ['title', 'description', 'minutes', 'kind', 'topicFocus'])) return 'invalid_response_structure'
+    if (typeof step.title !== 'string' || step.title.trim().length === 0 || step.title.length > 90) return 'invalid_step_title'
+    if (typeof step.description !== 'string' || step.description.trim().length === 0 || step.description.length > 600) return 'invalid_step_description'
+    if (!Number.isInteger(step.minutes) || step.minutes < 1 || step.minutes > input.timeBudgetMinutes) return 'invalid_step_minutes'
     const topicContext = input.clarification && !input.clarification.skipped
       ? `${input.goal} ${input.clarification.answer}`
       : input.goal
-    if (!stepKinds.has(step.kind) || !isTopicSpecific(topicContext, step.topicFocus)) return false
+    if (!stepKinds.has(step.kind)) return 'invalid_step_type'
+    if (!isTopicSpecific(topicContext, step.topicFocus)) return 'topic_reference_missing'
     if (learningKinds.has(step.kind)) hasLearningActivity = true
     totalMinutes += step.minutes
   }
 
-  return totalMinutes === input.timeBudgetMinutes && hasLearningActivity
+  if (totalMinutes !== input.timeBudgetMinutes) return 'minutes_total_mismatch'
+  if (!hasLearningActivity) return 'learning_activity_missing'
+  return null
+}
+
+export function validateAiPlanDraft(value, input) {
+  return diagnoseAiPlanDraft(value, input) === null
 }
 
 export function validateLearningPlanResponse(value, input) {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generateLearningPlanWithStatus } from './learningPlanApi'
 import type { LearningPlanApiResponse } from '../../shared/learningPlanSchema.mjs'
 import type { LearningPlanInput, LearningPlanRequest } from '../types/learningPlan'
@@ -33,6 +33,64 @@ function fakeFetch(payload: unknown, ok = true): typeof fetch {
     json: async () => payload,
   })) as unknown as typeof fetch
 }
+
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+
+describe('sichere Fallback-Diagnose', () => {
+  const diagnosisId = '61ef8fbd-7cc1-42ea-9e36-7b3741d9ef1a'
+  it.each([
+    ['provider_unreachable', 'nicht erreichbar'],
+    ['provider_timeout', 'zu lange'],
+    ['provider_http_error', 'nicht erfolgreich'],
+    ['invalid_json', 'Antwortformats'],
+    ['model_content_missing', 'keinen Lernplan'],
+    ['model_output_truncated', 'abgeschnitten'],
+    ['invalid_plan_schema', 'Planregeln'],
+    ['internal_error', 'interner Fehler'],
+    ['invalid_input', 'ungültige Eingaben'],
+    ['provider_not_configured', 'konfiguriert'],
+    ['provider_not_supported', 'nicht unterstützt'],
+    ['rate_limited', 'Zu viele'],
+    ['invalid_request', 'nicht verarbeitet'],
+  ])('zeigt %s und ausschließlich die geprüfte Diagnose-ID', async (category, message) => {
+    const result = await generateLearningPlanWithStatus(input, fakeFetch({ error: { category, diagnosisId, message: 'PRIVATE-KEY-AND-TEXT' } }, false))
+    expect(result.source).toBe('fallback')
+    expect(result.notice).toContain(message)
+    expect(result.notice).toContain(diagnosisId)
+    expect(result.notice).not.toContain('PRIVATE-KEY-AND-TEXT')
+  })
+
+  it('verwirft unbekannte Kategorien und nicht vertrauenswürdige IDs', async () => {
+    const result = await generateLearningPlanWithStatus(input, fakeFetch({ error: { category: 'PRIVATE-TEXT', diagnosisId: 'PRIVATE-TEXT', message: 'PRIVATE-TEXT' } }, false))
+    expect(result.notice).not.toContain('PRIVATE-TEXT')
+    expect(result.notice).toMatch(/Diagnose-ID: [0-9a-f-]{36}/)
+  })
+
+  it.each(['fetch', 'body'])('begrenzt hängenden %s einschließlich Antwortverarbeitung', async (phase) => {
+    vi.useFakeTimers()
+    let signal: AbortSignal | null | undefined
+    const fetch = vi.fn(async (_url, init) => {
+      signal = init?.signal
+      if (phase === 'fetch') return new Promise(() => {})
+      return { ok: true, json: () => new Promise(() => {}) }
+    }) as unknown as typeof globalThis.fetch
+    const pending = generateLearningPlanWithStatus(input, fetch)
+    await vi.advanceTimersByTimeAsync(25_000)
+    const result = await pending
+    expect(result.source).toBe('fallback')
+    expect(result.notice).toContain('zu lange')
+    expect(signal?.aborted).toBe(true)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('behandelt ungültiges Antwort-JSON ohne Fehlertexte auszugeben', async () => {
+    const fetch = (async () => ({ ok: true, json: async () => { throw new SyntaxError('PRIVATE-TEXT') } })) as unknown as typeof globalThis.fetch
+    const result = await generateLearningPlanWithStatus(input, fetch)
+    expect(result.notice).toContain('Antwortformats')
+    expect(result.notice).not.toContain('PRIVATE-TEXT')
+  })
+})
 
 describe('Frontend-API-Service', () => {
   it('verwendet eine gültige Serverantwort aus dem Mock-Modus', async () => {

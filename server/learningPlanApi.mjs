@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { validateAiPlanDraft, validatePlanInput } from '../shared/learningPlanSchema.mjs'
+import { diagnoseAiPlanDraft, validatePlanInput } from '../shared/learningPlanSchema.mjs'
 
 const blockerGuidance = {
   starting: 'Ermögliche einen sehr kleinen, konkreten Einstieg.',
@@ -65,9 +65,16 @@ function createMockDraft(input) {
 
 async function requestGroqDraft(input, env, fetchImpl) {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 20_000)
+  let timeout
+  const expired = new Promise((_, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort()
+      reject(new ProviderFailure('provider_timeout'))
+    }, 20_000)
+  })
+  const withinDeadline = (operation) => Promise.race([operation, expired])
   try {
-    const response = await fetchImpl('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await withinDeadline(fetchImpl('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         authorization: `Bearer ${env.GROQ_API_KEY}`,
@@ -93,72 +100,122 @@ async function requestGroqDraft(input, env, fetchImpl) {
           },
         ],
       }),
-    })
-    if (!response.ok) throw new Error('provider_http_error')
-    const body = await response.json()
+    }).catch((error) => {
+      if (controller.signal.aborted) throw new ProviderFailure('provider_timeout')
+      throw new ProviderFailure('provider_unreachable')
+    }))
+    if (!response.ok) throw new ProviderFailure('provider_http_error', Number.isInteger(response.status) && response.status >= 100 && response.status <= 599 ? response.status : undefined)
+    const body = await withinDeadline(response.json().catch((error) => {
+      if (controller.signal.aborted) throw new ProviderFailure('provider_timeout')
+      if (error instanceof SyntaxError) throw new ProviderFailure('invalid_json')
+      if (error instanceof TypeError) throw new ProviderFailure('provider_unreachable')
+      throw error
+    }))
+    if (body?.choices?.[0]?.finish_reason === 'length') throw new ProviderFailure('model_output_truncated')
     const content = body?.choices?.[0]?.message?.content
-    if (typeof content !== 'string') throw new Error('provider_response_missing_content')
-    return JSON.parse(content)
+    if (typeof content !== 'string') throw new ProviderFailure('model_content_missing')
+    try { return JSON.parse(content) } catch { throw new ProviderFailure('invalid_json') }
   } finally {
     clearTimeout(timeout)
   }
 }
 
-function errorResponse(status, code, message) {
-  return { status, body: { error: { code, message } } }
+class ProviderFailure extends Error {
+  constructor(category, upstreamStatus) {
+    super(category)
+    this.category = category
+    this.upstreamStatus = upstreamStatus
+  }
+}
+
+// Only fixed codes and numeric metadata enter logs, never caught exceptions.
+const errorMessages = {
+  invalid_input: 'Bitte prüfe Lernziel, Zeitbudget, Energielevel und Lernblockade.',
+  provider_not_configured: 'Der KI-Anbieter ist serverseitig noch nicht vollständig konfiguriert.',
+  provider_not_supported: 'Der konfigurierte KI-Anbieter wird nicht unterstützt.',
+  provider_unavailable: 'Der KI-Dienst ist gerade nicht erreichbar oder hat eine ungültige Antwort geliefert.',
+  invalid_ai_plan: 'Die KI-Antwort entsprach nicht dem Lernplan-Schema oder Zeitbudget.',
+  rate_limited: 'Zu viele Lernplananfragen. Bitte warte kurz und versuche es erneut.',
+  method_not_allowed: 'Dieser API-Endpunkt akzeptiert nur POST-Anfragen.',
+}
+
+export function createRequestDiagnosis() {
+  const diagnosisId = randomUUID()
+  const startedAt = Date.now()
+  return {
+    failure(status, code, category, schemaCode, upstreamStatus) {
+      console.warn(JSON.stringify({
+        event: 'learning_plan_failure', diagnosisId, category,
+        durationMs: Math.max(0, Date.now() - startedAt),
+        ...(schemaCode ? { schemaCode } : {}),
+        ...(upstreamStatus !== undefined ? { upstreamStatus } : {}),
+      }))
+      return { status, body: { error: {
+        code, message: errorMessages[code] ?? 'Der KI-Lernplan konnte nicht erstellt werden.',
+        category, diagnosisId, ...(schemaCode ? { schemaCode } : {}),
+      } } }
+    },
+  }
 }
 
 export async function handleLearningPlanRequest(payload, options = {}) {
-  const env = options.env ?? process.env
-  const fetchImpl = options.fetchImpl ?? globalThis.fetch
-  const createId = options.createId ?? (() => `mission-${randomUUID()}`)
+  const diagnosis = options.diagnosis ?? createRequestDiagnosis()
+  try {
+    const env = options.env ?? process.env
+    const fetchImpl = options.fetchImpl ?? globalThis.fetch
+    const createId = options.createId ?? (() => `mission-${randomUUID()}`)
 
-  if (!validatePlanInput(payload)) {
-    return errorResponse(400, 'invalid_input', 'Bitte prüfe Lernziel, Zeitbudget, Energielevel und Lernblockade.')
-  }
-
-  const provider = env.AI_PROVIDER ?? 'mock'
-  let draft
-  if (provider === 'mock') {
-    draft = createMockDraft(payload)
-  } else if (provider === 'groq') {
-    if (!env.GROQ_API_KEY || !env.GROQ_MODEL) {
-      return errorResponse(503, 'provider_not_configured', 'Der KI-Anbieter ist serverseitig noch nicht vollständig konfiguriert.')
+    if (!validatePlanInput(payload)) {
+      return diagnosis.failure(400, 'invalid_input', 'invalid_input')
     }
-    try {
-      draft = await requestGroqDraft(payload, env, fetchImpl)
-    } catch {
-      return errorResponse(502, 'provider_unavailable', 'Der KI-Dienst ist gerade nicht erreichbar oder hat eine ungültige Antwort geliefert.')
+
+    const provider = env.AI_PROVIDER ?? 'mock'
+    let draft
+    if (provider === 'mock') {
+      draft = createMockDraft(payload)
+    } else if (provider === 'groq') {
+      if (!env.GROQ_API_KEY || !env.GROQ_MODEL) {
+        return diagnosis.failure(503, 'provider_not_configured', 'provider_not_configured')
+      }
+      try {
+        draft = await requestGroqDraft(payload, env, fetchImpl)
+      } catch (error) {
+        if (!(error instanceof ProviderFailure)) throw error
+        return diagnosis.failure(502, 'provider_unavailable', error.category, undefined, error.upstreamStatus)
+      }
+    } else {
+      return diagnosis.failure(503, 'provider_not_supported', 'provider_not_supported')
     }
-  } else {
-    return errorResponse(503, 'provider_not_supported', 'Der konfigurierte KI-Anbieter wird nicht unterstützt.')
-  }
 
-  if (!validateAiPlanDraft(draft, payload)) {
-    return errorResponse(502, 'invalid_ai_plan', 'Die KI-Antwort entsprach nicht dem Lernplan-Schema oder Zeitbudget.')
-  }
+    const schemaCode = diagnoseAiPlanDraft(draft, payload)
+    if (schemaCode) {
+      return diagnosis.failure(502, 'invalid_ai_plan', 'invalid_plan_schema', schemaCode)
+    }
 
-  const id = createId()
-  return {
-    status: 200,
-    body: {
-      source: provider,
-      clarifyingQuestion: draft.clarifyingQuestion,
-      plan: {
-        id,
-        goal: payload.goal,
-        timeBudgetMinutes: payload.timeBudgetMinutes,
-        energyLevel: payload.energyLevel,
-        learningBlocker: payload.learningBlocker,
-        steps: draft.steps.map((step, index) => ({
-          id: `${id}-step-${index + 1}`,
-          title: step.title.trim(),
-          description: step.description.trim(),
-          minutes: step.minutes,
-          kind: step.kind,
-          done: false,
-        })),
+    const id = createId()
+    return {
+      status: 200,
+      body: {
+        source: provider,
+        clarifyingQuestion: draft.clarifyingQuestion,
+        plan: {
+          id,
+          goal: payload.goal,
+          timeBudgetMinutes: payload.timeBudgetMinutes,
+          energyLevel: payload.energyLevel,
+          learningBlocker: payload.learningBlocker,
+          steps: draft.steps.map((step, index) => ({
+            id: `${id}-step-${index + 1}`,
+            title: step.title.trim(),
+            description: step.description.trim(),
+            minutes: step.minutes,
+            kind: step.kind,
+            done: false,
+          })),
+        },
       },
-    },
+    }
+  } catch {
+    return diagnosis.failure(500, 'internal_error', 'internal_error')
   }
 }

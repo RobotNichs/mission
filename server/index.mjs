@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { handleLearningPlanRequest } from './learningPlanApi.mjs'
+import { createRequestDiagnosis, handleLearningPlanRequest } from './learningPlanApi.mjs'
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url))
 const distributionRoot = resolve(projectRoot, 'dist')
@@ -54,7 +54,7 @@ async function parseJsonBody(request) {
   }
 }
 
-export function createApiMiddleware() {
+export function createApiMiddleware(handleRequest = handleLearningPlanRequest) {
   const requestWindows = new Map()
   return async (request, response, next) => {
     let pathname
@@ -64,33 +64,40 @@ export function createApiMiddleware() {
       return sendJson(response, 400, { error: { code: 'invalid_url', message: 'Die Anfrage ist ungültig.' } })
     }
     if (pathname !== '/api/learning-plan') return next()
+    const diagnosis = createRequestDiagnosis()
     const now = Date.now()
     const clientAddress = request.socket?.remoteAddress ?? 'local'
     const windowStart = requestWindows.get(clientAddress)
     if (!windowStart || now - windowStart.startedAt >= 60_000) {
       requestWindows.set(clientAddress, { startedAt: now, count: 1 })
     } else if (windowStart.count >= requestsPerMinute) {
-      return sendJson(response, 429, { error: { code: 'rate_limited', message: 'Zu viele Lernplananfragen. Bitte warte kurz und versuche es erneut.' } })
+      const result = diagnosis.failure(429, 'rate_limited', 'rate_limited')
+      return sendJson(response, result.status, result.body)
     } else {
       windowStart.count += 1
     }
     if (request.method !== 'POST') {
       response.setHeader('allow', 'POST')
-      return sendJson(response, 405, { error: { code: 'method_not_allowed', message: 'Dieser API-Endpunkt akzeptiert nur POST-Anfragen.' } })
+      const result = diagnosis.failure(405, 'method_not_allowed', 'invalid_request')
+      return sendJson(response, result.status, result.body)
     }
 
+    let payload
     try {
-      const payload = await parseJsonBody(request)
-      const result = await handleLearningPlanRequest(payload)
-      return sendJson(response, result.status, result.body)
+      payload = await parseJsonBody(request)
     } catch (error) {
-      const status = error.status ?? 400
-      const message = status === 413
-        ? 'Die Anfrage ist zu groß.'
-        : status === 415
-          ? 'Bitte sende die Lernplananfrage als JSON.'
-          : 'Die Anfrage enthält kein gültiges JSON.'
-      return sendJson(response, status, { error: { code: 'invalid_request', message } })
+      const expected = ['content_type', 'body_too_large', 'invalid_json'].includes(error.message)
+      const result = expected
+        ? diagnosis.failure(error.status, 'invalid_request', error.message === 'invalid_json' ? 'invalid_json' : 'invalid_request')
+        : diagnosis.failure(500, 'internal_error', 'internal_error')
+      return sendJson(response, result.status, result.body)
+    }
+    try {
+      const result = await handleRequest(payload, { diagnosis })
+      return sendJson(response, result.status, result.body)
+    } catch {
+      const result = diagnosis.failure(500, 'internal_error', 'internal_error')
+      return sendJson(response, result.status, result.body)
     }
   }
 }
