@@ -570,6 +570,16 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-
 .debug-level-preview { display: grid; justify-items: start; gap: 12px; margin: 18px 0; }
 .debug-level-preview input { width: min(360px, 100%); }
 .debug-preview-orb { justify-self: center; }
+.prestige-panel { margin: 20px 0; padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); }
+.prestige-panel summary { cursor: pointer; font-weight: 600; }
+.prestige-panel summary span { color: var(--muted); font-size: 12px; margin-left: 12px; font-weight: 400; }
+.prestige-panel p { margin: 14px 0; font-size: 13px; }
+.prestige-stages { display: grid; gap: 8px; padding: 0; margin: 16px 0; list-style: none; }
+.prestige-stages li { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+.prestige-stages strong { color: var(--accent); }
+.prestige-stages small, .prestige-note { color: var(--muted); }
+.prestige-preview { margin: 16px 0; padding: 12px; border: 1px dashed var(--line); }
+.prestige-preview select { appearance: auto; padding: 8px; }
 /* Focus scenery is decorative, local and independent of session accounting. */
 .focus-mode { position: relative; isolation: isolate; }
 .focus-orb-motion { position: absolute; inset: 0; }

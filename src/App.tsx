@@ -1,4 +1,5 @@
 import LearningHistory from './components/LearningHistory'
+import PrestigePanel from './components/PrestigePanel'
 import { measureOrb, type OrbOrigin } from './services/focusTransition'
 import FocusEnvironmentPicker from './components/FocusEnvironmentPicker'
 import { loadFocusEnvironment, saveFocusEnvironment, type FocusEnvironment } from './services/focusEnvironment'
@@ -836,6 +837,7 @@ function App() {
 
       </div>
       <LearningHistory entries={history} />
+      <PrestigePanel focusMilliseconds={gamification.totalFocusMilliseconds} />
       <footer className="footer"><span>MISSION <i>·</i> DEIN LERNWEG, IN DEINEM TEMPO.</span><span>Mit Ruhe. Mit Fokus. Mit dir.</span></footer>
       {showMissionCompletion && <MissionRewardDialog onClose={() => setShowMissionCompletion(false)} />}
     </main>

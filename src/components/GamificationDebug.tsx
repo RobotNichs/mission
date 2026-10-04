@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import PrestigePreview from './PrestigePreview'
 import type { GamificationState } from '../types/gamification'
 import { orbCollection, rarityLabels } from '../services/orbCatalog'
 import { applyDebugAction, type DebugAction } from '../services/gamificationDebug'
@@ -29,6 +30,7 @@ export default function GamificationDebug({ state, enabled, onChange }: Props) {
     <details className="coin-shop panel gamification-debug">
       <summary>Lokaler Gamification-Testmodus</summary>
       <p className="shop-description">Nur für lokale Entwicklung. Testwerte werden auf diesem Gerät gespeichert; vorhandene Daten bleiben erhalten. Keine Fokuszeit und keine Level durch diese Aktionen.</p>
+      <PrestigePreview />
       <section className="debug-level-preview" aria-label="Visuelle Level-Vorschau">
         <label className="field-label" htmlFor="debug-level-preview">Orb-Größe für Vorschau-Level {previewLevel}</label>
         <input id="debug-level-preview" type="range" min={1} max={100} step={1} value={previewLevel}
