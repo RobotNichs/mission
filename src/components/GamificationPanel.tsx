@@ -2,6 +2,9 @@ import { getEquippedOrb } from '../services/prestigeOrbs'
 import { getOrbSize } from '../services/orbSize'
 import type { Ref } from 'react'
 import OrbVisual from './OrbVisual'
+import UiIcon from './UiIcon'
+import { getPrestige } from '../services/prestige'
+import { formatFocusTime } from '../services/formatFocusTime'
 import type { GamificationState } from '../types/gamification'
 import {
   getLevel,
@@ -23,14 +26,14 @@ export default function GamificationPanel({ state, rewardNotice, coreRef }: Gami
   const equippedOrb = getEquippedOrb(state)
 
   return (
-    <section className="gamification-panel" aria-label="Dein Mission-Fortschritt">
+    <section className="gamification-panel mission-core-panel" aria-label="Dein Mission-Fortschritt">
+      <header className="mission-core-heading"><p className="section-kicker">DEIN LANGFRISTIGER FORTSCHRITT</p><h2>Mission Core</h2></header>
       <div className="core-column">
         <div ref={coreRef} className={`mission-core core-orb-${state.equippedOrbId ? equippedOrb.rarity : 'default'} core-effect-${state.selectedCoreEffectId}`}
-          style={{ width: `min(${getOrbSize(level)}px, 100%)`, aspectRatio: '1' }} role="img" aria-label={`Mission Core, Level ${level}`}>
+          style={{ width: `min(${getOrbSize(level) * 1.8}px, 220px, 100%)`, aspectRatio: '1' }} role="img" aria-label={`Mission Core, Level ${level}`}>
           <OrbVisual orb={equippedOrb} className="core-orb-art" />
-          <span className="core-center">{level.toString().padStart(2, '0')}</span>
         </div>
-        <span className="core-caption">MISSION CORE</span>
+        <span className="core-caption">{equippedOrb.name}</span>
       </div>
 
       <div className="level-column">
@@ -39,14 +42,13 @@ export default function GamificationPanel({ state, rewardNotice, coreRef }: Gami
             <p className="section-kicker">DEIN FORTSCHRITT</p>
             <h2>Level {level}</h2>
           </div>
-          <div className="coin-count" aria-label={`${state.coins} Coins`}>
-            <span className="coin-icon" aria-hidden="true">◉</span>
-            <strong>{state.coins}</strong>
-            <span>Coins</span>
-          </div>
         </div>
+        <dl className="core-stats">
+          <div className="core-focus-stat"><dt>Gesamtfokuszeit</dt><dd>{formatFocusTime(state.totalFocusMilliseconds)}</dd></div>
+          <div><dt>Coins</dt><dd className="coin-count" aria-label={`${state.coins} Coins`}><UiIcon name="coin" /><strong>{state.coins}</strong></dd></div>
+          <div><dt>Prestige</dt><dd>Prestige {getPrestige(state.totalFocusMilliseconds).label}</dd></div>
+        </dl>
         <div className="focus-copy">
-          <span>{Math.floor(focusMinutes)} Fokusminuten gesamt</span>
           <span>Noch {Math.ceil(required - withinLevel)} Fokusminuten bis Level {level + 1}</span>
         </div>
         <div className="focus-track" role="progressbar" aria-label="Fortschritt zum nächsten Level" aria-valuenow={Math.floor(withinLevel)} aria-valuemin={0} aria-valuemax={required}>

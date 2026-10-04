@@ -7,6 +7,7 @@ import type { FocusEnvironment } from '../services/focusEnvironment'
 import type { LearningPlan } from '../types/learningPlan'
 import type { OrbDefinition } from '../types/gamification'
 import OrbVisual from './OrbVisual'
+import UiIcon from './UiIcon'
 import { getOrbSize } from '../services/orbSize'
 
 type Props = {
@@ -62,7 +63,7 @@ export default function FocusMode({ mission, orb, countdown, stopwatch, level = 
     <main ref={transition.root} className={`focus-mode environment-${environment}`} data-focus-entering={transition.entering} data-background-motion={visible && isRunning ? 'running' : 'paused'} aria-label="Fokusmodus">
       <FocusBackdrop environment={environment} />
       <div className="focus-topline"><span>MISSION · FOKUS</span>
-        <button className="focus-leave" type="button" onClick={onLeave}>Fokusmodus verlassen</button></div>
+        <button className="focus-leave focus-exit-icon" type="button" onClick={onLeave} aria-label="Fokusmodus verlassen" title="Fokusmodus verlassen"><UiIcon name="close" /></button></div>
       {onEnvironmentChange && <FocusEnvironmentPicker value={environment} onChange={onEnvironmentChange} />}
       {environmentNotice && <p className="environment-notice">{environmentNotice}</p>}
       {onEditPlan && <button className="focus-leave" type="button" disabled={!enabled} onClick={onEditPlan}>Lernplan bearbeiten</button>}

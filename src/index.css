@@ -570,6 +570,42 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-
 .debug-level-preview { display: grid; justify-items: start; gap: 12px; margin: 18px 0; }
 .debug-level-preview input { width: min(360px, 100%); }
 .debug-preview-orb { justify-self: center; }
+/* Shared controls: keyboard and touch do not depend on hover. */
+.ui-icon { display: inline-block; width: 18px; height: 18px; flex: 0 0 18px; vertical-align: middle; }
+button { min-height: 44px; border-radius: 6px; }
+button:not(.editor-step-toggle):not(.orb-card):not(.energy-option) { gap: 8px; }
+.focus-leave, .shop-action { display: inline-flex; align-items: center; justify-content: center; padding: 10px 14px; }
+.focus-exit-icon { width: 44px; height: 44px; min-width: 44px; padding: 10px; flex-shrink: 0; }
+.focus-exit-icon .ui-icon { width: 22px; height: 22px; flex-basis: 22px; }
+button:disabled, fieldset:disabled button { opacity: .45; cursor: not-allowed; }
+button:not(:disabled):active { filter: brightness(.85); border-color: var(--accent); }
+button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+summary { padding: 10px 0; min-height: 44px; border-radius: 4px; }
+summary:active { color: var(--accent); }
+@media (hover: hover) {
+  button:not(:disabled):hover { border-color: var(--accent); filter: brightness(1.12); }
+  summary:hover { color: var(--accent); }
+}
+.mission-core-panel.gamification-panel { grid-template-columns: minmax(0, .95fr) minmax(0, 1fr); gap: 20px; align-items: center; }
+.mission-core-heading { grid-column: 1 / -1; }
+.mission-core-heading h2 { margin: 0; font-size: 21px; font-weight: 600; }
+.mission-core-panel .core-column { min-width: 0; width: 100%; gap: 16px; padding: 12px 0; }
+.mission-core-panel .core-caption { max-width: 100%; text-align: center; overflow-wrap: anywhere; font-size: 11px; }
+.mission-core-panel .level-title-row h2 { font-size: 26px; }
+.core-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; margin: 16px 0; }
+.core-stats > div { min-width: 0; }
+.core-stats dt { font-size: 11px; color: var(--muted); }
+.core-stats dd { margin: 4px 0 0; font: 15px var(--font-data); color: var(--ink); overflow-wrap: anywhere; }
+.core-focus-stat { grid-column: 1 / -1; }
+.core-stats .coin-count .ui-icon { color: #e2c77d; }
+@media (max-width: 520px) {
+  .mission-core-panel.gamification-panel { grid-template-columns: minmax(0, 1fr); }
+  .mission-core-panel .core-column { width: min(240px, 100%); justify-self: center; }
+  .mission-core-panel .level-column { width: 100%; }
+  .mission-core-panel .level-title-row { justify-content: center; text-align: center; }
+  .core-stats { text-align: center; }
+  .editor-step-actions button { min-height: 44px; }
+}
 .prestige-lines { fill: none; stroke: var(--orb-light); stroke-width: .8; opacity: .75; }
 .prestige-aura { position: absolute; inset: 1%; border-radius: 50%; border: 1px solid var(--orb-light); background: transparent; opacity: .45; pointer-events: none; }
 .prestige-astral .orb-surface { inset: 10%; }
@@ -822,6 +858,10 @@ button:disabled { cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
+/* Keep important controls touch-sized despite older component overrides. */
+:is(.app-shell, .focus-mode, .shop-modal-backdrop) button:not(.orb-card):not(.energy-option) { min-height: 44px; }
+.focus-mode .focus-exit-icon { width: 44px; height: 44px; padding: 10px; }
+:is(.app-shell, .focus-mode, .shop-modal-backdrop) button:disabled { opacity: .45; }
 @media (max-width: 520px) {
   .crate-heading-actions { width: 100%; justify-content: flex-start; }
   .collection-dialog-header { align-items: flex-start; }
