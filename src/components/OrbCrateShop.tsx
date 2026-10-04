@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type Ref } from 'react'
 import { ORB_CRATE_COST, type CratePurchaseResult } from '../services/gamification'
 import { rarityLabels } from '../services/orbCatalog'
 import type { GamificationState } from '../types/gamification'
 import OrbVisual from './OrbVisual'
 import UiIcon from './UiIcon'
 
-type Props = { state: GamificationState; enabled: boolean; onPurchase: (purchaseId: string) => CratePurchaseResult; onOpenCollection: () => void }
+type Props = { state: GamificationState; enabled: boolean; onPurchase: (purchaseId: string) => CratePurchaseResult; onOpenCollection: () => void; sectionRef?: Ref<HTMLElement> }
 
-export default function OrbCrateShop({ state, enabled, onPurchase, onOpenCollection }: Props) {
+export default function OrbCrateShop({ state, enabled, onPurchase, onOpenCollection, sectionRef }: Props) {
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [result, setResult] = useState<CratePurchaseResult | null>(null)
   const [revealed, setRevealed] = useState(false)
@@ -55,7 +55,7 @@ export default function OrbCrateShop({ state, enabled, onPurchase, onOpenCollect
   }
 
   return (
-    <section className="coin-shop panel crate-shop" aria-labelledby="crate-shop-title">
+    <section ref={sectionRef} className="coin-shop panel crate-shop" aria-labelledby="crate-shop-title">
       <div className="shop-heading">
         <div><p className="section-kicker">DEIN NÄCHSTER FUND</p><h2 id="crate-shop-title">Orb-Kiste</h2>
           <p className="shop-description">Ein zufälliger Orb. Dein eigener Look. Nur mit Fokus-Coins.</p></div>

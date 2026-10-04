@@ -1,5 +1,8 @@
 import { getEquippedOrb } from './services/prestigeOrbs'
 import LearningHistory from './components/LearningHistory'
+import SpotlightTour from './components/SpotlightTour'
+import UiIcon from './components/UiIcon'
+import { saveTourStatus, shouldOfferTour, type TourStatus } from './services/onboarding'
 import PrestigePanel from './components/PrestigePanel'
 import { measureOrb, type OrbOrigin } from './services/focusTransition'
 import FocusEnvironmentPicker from './components/FocusEnvironmentPicker'
@@ -193,6 +196,21 @@ function formatTime(totalSeconds: number) {
 }
 
 function App() {
+  const [tourOffer, setTourOffer] = useState(shouldOfferTour)
+  const [tourOpen, setTourOpen] = useState(false)
+  const setupTarget = useRef<HTMLElement>(null)
+  const planTarget = useRef<HTMLElement>(null)
+  const timerTarget = useRef<HTMLElement>(null)
+  const coreTarget = useRef<HTMLElement>(null)
+  const cratesTarget = useRef<HTMLElement>(null)
+  const tourTargets = useRef([setupTarget, planTarget, timerTarget, coreTarget, cratesTarget])
+  const tourHelp = useRef<HTMLButtonElement>(null)
+  useEffect(() => { if (tourOffer) saveTourStatus('offered') }, [tourOffer])
+  function closeTour(status: TourStatus) {
+    saveTourStatus(status)
+    setTourOpen(false)
+    tourHelp.current?.focus()
+  }
   const dashboardOrb = useRef<HTMLDivElement>(null)
   const orbOrigin = useRef<OrbOrigin | null>(null)
   const [focusEnvironment, setFocusEnvironment] = useState(loadFocusEnvironment)
@@ -577,7 +595,13 @@ function App() {
   )
 
   return (
-    <fieldset className="mission-writer-surface" disabled={!canWrite}>
+    <fieldset className="mission-writer-surface" disabled={!canWrite} onClickCapture={event => {
+      if (tourOpen && !(event.target instanceof Element && event.target.closest('[data-tour-controls]'))) { event.preventDefault(); event.stopPropagation() }
+    }} onChangeCapture={event => {
+      if (tourOpen) { event.preventDefault(); event.stopPropagation() }
+    }} onSubmitCapture={event => {
+      if (tourOpen) { event.preventDefault(); event.stopPropagation() }
+    }}>
     {!canWrite && <p role="status" className="writer-notice">{storageError ?? 'Mission ist in einem anderen Tab aktiv. Dieser Tab zeigt den gespeicherten Stand und übernimmt nach dessen Schließen.'}</p>}
     <main className={`app-shell theme-${gamification.selectedBackgroundId} ${hasEnteredFocus.current ? 'focus-return' : ''}`}>
       <header className="topbar">
@@ -586,10 +610,18 @@ function App() {
           <span className="brand-name">mission</span>
         </a>
         <div className="topbar-right">
+          <button ref={tourHelp} className="focus-leave tour-help" type="button" aria-label="Mission-Tour starten" title="Mission kennenlernen"
+            disabled={isRunning} onClick={() => { setTourOffer(false); setTourOpen(true) }}><UiIcon name="help" /></button>
           <span className="local-badge"><span className="status-dot" /> Alles lokal gespeichert</span>
           <span className="avatar" aria-label="Dein Lernbereich">L</span>
         </div>
       </header>
+      {tourOffer && !isRunning && <aside className="tour-offer" aria-label="Mission kennenlernen">
+        <span>Mission kurz kennenlernen?</span>
+        <button type="button" className="focus-leave" onClick={() => { setTourOffer(false); setTourOpen(true) }}>Tour starten</button>
+        <button type="button" className="focus-leave" onClick={() => { setTourOffer(false); saveTourStatus('skipped') }}>Jetzt nicht</button>
+      </aside>}
+      {tourOpen && <SpotlightTour targets={tourTargets.current} onClose={closeTour} />}
 
       <section className="intro" id="start">
         <div>
@@ -601,7 +633,7 @@ function App() {
       </section>
 
       <div className="workspace-grid">
-        <section className="panel setup-panel" aria-labelledby="setup-heading">
+        <section ref={setupTarget} className="panel setup-panel" aria-labelledby="setup-heading">
           <div className="panel-heading">
             <div className="heading-icon lavender">✎</div>
             <div>
@@ -735,7 +767,7 @@ function App() {
           </form>
         </section>
 
-        <section className="panel plan-panel" aria-labelledby="plan-heading">
+        <section ref={planTarget} className="panel plan-panel" aria-labelledby="plan-heading">
           <div className="panel-heading plan-heading">
             <div className="heading-icon mint">☷</div>
             <div>
@@ -796,7 +828,7 @@ function App() {
         </section>
       </div>
 
-      <section className="timer-panel" aria-label="Lern-Timer">
+      <section ref={timerTarget} className="timer-panel" aria-label="Lern-Timer">
         <FocusEnvironmentPicker value={focusEnvironment} onChange={changeFocusEnvironment} />
         {environmentNotice && <p className="environment-notice">{environmentNotice}</p>}
         <div className="timer-message">
@@ -819,12 +851,13 @@ function App() {
 
       <div className="mission-support">
       <GamificationPanel
+        sectionRef={coreTarget}
         coreRef={dashboardOrb}
         state={gamification}
         rewardNotice={rewardNotice}
       />
 
-      <OrbCrateShop state={gamification} enabled={canWrite} onPurchase={handleCratePurchase} onOpenCollection={() => setCollectionOpen(true)} />
+      <OrbCrateShop sectionRef={cratesTarget} state={gamification} enabled={canWrite} onPurchase={handleCratePurchase} onOpenCollection={() => setCollectionOpen(true)} />
       {collectionOpen && <OrbCollectionDialog state={gamification} enabled={canWrite} onClose={() => setCollectionOpen(false)}
         onEquipOrb={id => { if (writer.current) commitGamification(equipOrb(game.current, id)) }} />}
       {import.meta.env.DEV && GamificationDebug && isLocalDevelopment(import.meta.env.DEV, window.location.hostname) && (
