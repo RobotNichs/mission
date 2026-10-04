@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { createLearningPlanId, type LearningPlan, type LearningStep } from '../types/learningPlan'
 import { MAX_PLAN_MINUTES, validateEditablePlan } from '../services/planEditor'
 
-type Props = { initial: LearningPlan; onSave: (plan: LearningPlan) => void; onCancel: () => void; disabled: boolean }
+type Props = { initial: LearningPlan; onSave: (plan: LearningPlan) => void; onCancel: () => void; disabled: boolean; saveLabel?: string }
 
-export default function PlanEditor({ initial, onSave, onCancel, disabled }: Props) {
+export default function PlanEditor({ initial, onSave, onCancel, disabled, saveLabel = 'Änderungen speichern' }: Props) {
   const [draft, setDraft] = useState<LearningPlan>(() => ({ ...initial, timeMode: initial.timeMode ?? 'manual', steps: initial.steps.map(s => ({ ...s })) }))
   const [error, setError] = useState<string | null>(null)
   const [openStep, setOpenStep] = useState<string | null>(() => initial.steps.find(s => !s.title || !s.description)?.id ?? null)
@@ -56,7 +56,7 @@ export default function PlanEditor({ initial, onSave, onCancel, disabled }: Prop
       setDraft(p => ({ ...p, steps: [...p.steps, { id, title: '', description: '', minutes: 5, kind: 'learning', done: false }] }))
       setOpenStep(id)
     }}>Schritt hinzufügen</button>
-      <button type="submit">Änderungen speichern</button><button type="button" onClick={onCancel}>Abbrechen</button></div>
+      <button type="submit">{saveLabel}</button><button type="button" onClick={onCancel}>Abbrechen</button></div>
     {error && <p role="alert">{error}</p>}
   </fieldset></form>
 }

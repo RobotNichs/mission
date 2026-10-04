@@ -880,3 +880,20 @@ button:disabled { cursor: not-allowed; }
   .collection-dialog-header h2 { font-size: 16px; }
   .collection-dialog-header button { padding: 8px; font-size: 10px; }
 }
+/* Local reusable plans use the existing Mission Control surfaces. */
+.mission-library { margin-block: 16px; min-width: 0; }
+.mission-library summary { cursor: pointer; padding: 16px; font-weight: 600; }
+.mission-library summary small { display: inline-block; margin-left: 12px; font-weight: 400; }
+.library-content { padding: 0 16px 16px; }
+.library-filters, .library-metadata { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; margin-block: 16px; }
+.library-content label { display: grid; gap: 6px; min-width: 0; }
+.library-content input, .library-content select, .library-content textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+.library-list { list-style: none; padding: 0; display: grid; gap: 12px; max-height: 600px; overflow: auto; }
+.library-list li { border: 1px solid var(--border, #283a4b); border-radius: 12px; padding: 16px; min-width: 0; overflow-wrap: anywhere; }
+.library-list h3, .library-list p { margin: 0 0 8px; }
+.library-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.library-actions button { min-height: 44px; padding: 8px 12px; background: var(--surface-raised); color: var(--ink); border: 1px solid var(--line); font: inherit; cursor: pointer; }
+.library-actions button:first-child { border-color: var(--accent); }
+.library-filters input, .library-metadata input, .library-metadata textarea { min-height: 44px; padding: 8px; }
+.library-tags { color: #89c9d9; }
+.mission-library summary:focus-visible { outline: 2px solid #89c9d9; outline-offset: 2px; }

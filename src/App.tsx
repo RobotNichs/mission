@@ -1,5 +1,6 @@
 import { getEquippedOrb } from './services/prestigeOrbs'
 import LearningHistory from './components/LearningHistory'
+import MissionLibrary from './components/MissionLibrary'
 import SpotlightTour from './components/SpotlightTour'
 import UiIcon from './components/UiIcon'
 import { saveTourStatus, shouldOfferTour, type TourStatus } from './services/onboarding'
@@ -230,6 +231,8 @@ function App() {
   const [blockerDetails, setBlockerDetails] = useState(saved?.form.learningBlockerDetails ?? '')
   const [elapsedSeconds, setElapsedSeconds] = useState(saved?.elapsedSeconds ?? 0)
   const [editingPlan, setEditingPlan] = useState<LearningPlan | null>(null)
+  const [templateSaveRequest, setTemplateSaveRequest] = useState<LearningPlan | null>(null)
+  const [templateOrigin, setTemplateOrigin] = useState<'custom' | 'ai'>('custom')
   const [mission, setMission] = useState<LearningPlan | null>(saved?.mission ?? null)
   const [remainingSeconds, setRemainingSeconds] = useState(saved?.remainingSeconds ?? 25 * 60)
   const [gamification, setGamification] = useState<GamificationState>(loadGamificationState)
@@ -428,6 +431,7 @@ function App() {
     if (session.current && !window.confirm('Laufende Session pausieren und Lernplan ersetzen? Verdiente Fokuszeit bleibt erhalten.')) return
     stopTimer()
     setElapsedSeconds(0)
+    setTemplateOrigin(generation.source === 'groq' ? 'ai' : 'custom')
     const sameMission = mission?.goal.trim() === input.goal.trim()
     const reconciledSteps = preserveStepProgress(
       generation.plan.steps,
@@ -522,6 +526,7 @@ function App() {
         return current ? { ...step, done: current.done } : step
       })
       const next = applyPlanTiming({ ...plan, steps }, elapsed)
+      if (plan.id !== mission?.id) setTemplateOrigin('custom')
       setMission(next.plan)
       setRemainingSeconds(next.remainingSeconds)
       setElapsedSeconds(elapsed)
@@ -779,7 +784,8 @@ function App() {
 
           {editingPlan && <PlanEditor initial={editingPlan} onSave={saveEditedPlan} onCancel={() => setEditingPlan(null)} disabled={!canWrite || isGenerating || pendingClarification !== null} />}
           {mission && !editingPlan && <><p className="generation-notice">Alle Schritte sind bearbeitbar. KI-Pläne sind Vorschläge. Du entscheidest über deinen Plan.</p>
-            <button type="button" className="clarification-skip" disabled={isGenerating || pendingClarification !== null} onClick={() => setEditingPlan(mission)}>Lernplan bearbeiten</button></>}
+            <button type="button" className="clarification-skip" disabled={isGenerating || pendingClarification !== null} onClick={() => setEditingPlan(mission)}>Lernplan bearbeiten</button>
+            <button type="button" className="clarification-skip" disabled={isGenerating || pendingClarification !== null} onClick={() => setTemplateSaveRequest({ ...mission, steps: mission.steps.map(s => ({ ...s })) })}>Als Vorlage speichern</button></>}
           {!editingPlan && (mission ? (
             <>
               <div className="plan-summary">
@@ -871,6 +877,18 @@ function App() {
 
       </div>
       <LearningHistory entries={history} />
+      <MissionLibrary saveRequest={templateSaveRequest} suggestedOrigin={templateOrigin} onDismissSave={() => setTemplateSaveRequest(null)}
+        enabled={canWrite && !isGenerating && pendingClarification === null && !tourOpen} sessionActive={hasActiveSession}
+        onUse={plan => {
+          if (!writer.current || appSnapshot.current.activeSession || session.current) return
+          const remaining = plan.timeMode === 'stopwatch' ? 0 : plan.timeBudgetMinutes * 60
+          const next = { ...appSnapshot.current, mission: plan, remainingSeconds: remaining, elapsedSeconds: 0 }
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); appSnapshot.current = next
+            setMission(plan); setRemainingSeconds(remaining); setElapsedSeconds(0); setEditingPlan(null)
+            setShowMissionCompletion(false); setGenerationNotice('Vorlage übernommen. Dein Timer bleibt pausiert.'); setTemplateSaveRequest(null); setTemplateOrigin('custom')
+          } catch { failStorage() }
+        }} />
       <PrestigePanel focusMilliseconds={gamification.totalFocusMilliseconds} />
       <footer className="footer"><span>MISSION <i>·</i> DEIN LERNWEG, IN DEINEM TEMPO.</span><span>Mit Ruhe. Mit Fokus. Mit dir.</span></footer>
       {showMissionCompletion && <MissionRewardDialog onClose={() => setShowMissionCompletion(false)} />}
