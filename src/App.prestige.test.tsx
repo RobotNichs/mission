@@ -34,8 +34,8 @@ it('zeigt nach V den maximalen Fortschritt und fünf erreichte Stufen', () => {
   fireEvent.click(screen.getByText(/Langfristiger Fortschritt/))
   expect(screen.getByText('Maximaler Prestige-Rang V erreicht.')).toBeTruthy()
   expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('100')
-  expect(screen.getAllByText('Erreicht')).toHaveLength(5)
-  expect(screen.getAllByText('Kommt in Phase 7B')).toHaveLength(5)
+  expect(screen.getAllByText('Freigeschaltet')).toHaveLength(5)
+  for (const name of ['Astral', 'Orbit', 'Pulsar', 'Zenith', 'Singularity Prime']) expect(screen.getByText(name)).toBeTruthy()
 })
 it('behandelt beschädigte gespeicherte Fokuszeit ohne Prestige-Freischaltung', () => {
   localStorage.setItem(GAMIFICATION_STORAGE_KEY, JSON.stringify({ ...initialGamificationState, totalFocusMilliseconds: 'fake', coins: 23 }))

@@ -6,6 +6,7 @@ export type OrbDefinition = {
   rarity: OrbRarity
   description: string
   visual: {
+    prestigeStyle?: 'astral' | 'orbit' | 'pulsar' | 'zenith' | 'singularity'
     colors: [string, string, string]
     material: 'glass' | 'pearl' | 'metal' | 'crystal' | 'nebula'
     pattern: 'none' | 'bands' | 'facets' | 'stars' | 'vortex' | 'halo' | 'petals'

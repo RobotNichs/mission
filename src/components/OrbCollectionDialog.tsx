@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import OrbVisual from './OrbVisual'
 import { rarityLabels, orbCollection } from '../services/orbCatalog'
 import type { GamificationState } from '../types/gamification'
+import { isPrestigeOrbAvailable, prestigeOrbs } from '../services/prestigeOrbs'
 
 type Props = { state: GamificationState; onEquipOrb: (id: string | null) => void; onClose: () => void; enabled: boolean }
 export default function OrbCollectionDialog({ state, onEquipOrb, onClose, enabled }: Props) {
@@ -72,8 +73,20 @@ export default function OrbCollectionDialog({ state, onEquipOrb, onClose, enable
           })}
         </ul>
         <p className="drop-rates">
-          Neue Orbs findest du ausschließlich in gekauften Kisten. Der Standard-Orb ist immer verfügbar.
+          Normale Orbs findest du ausschließlich in gekauften Kisten. Der Standard-Orb ist immer verfügbar.
         </p>
+        <h3 className="prestige-collection-title">Prestige</h3>
+        <ul className="orb-collection" aria-label="Prestige-Orbs" tabIndex={0}>{prestigeOrbs.map(({ orb, stage }) => {
+          const available = isPrestigeOrbAvailable(state.totalFocusMilliseconds, orb.id)
+          const equipped = state.equippedOrbId === orb.id
+          return <li key={orb.id}><button type="button" className={`orb-card ${available ? 'is-owned' : 'is-locked'} ${equipped ? 'is-equipped' : ''}`}
+            aria-label={`${available ? 'Ausrüsten' : 'Gesperrt'}: ${orb.name}`} aria-pressed={equipped} disabled={!available}
+            onClick={() => onEquipOrb(orb.id)}>
+            <OrbVisual orb={orb} /><span className="orb-name">{orb.name}</span>
+            <span className="orb-rarity">{equipped ? 'Ausgerüstet' : `Prestige ${stage.label}`}</span>
+            <span className="orb-rarity">{available ? 'Freigeschaltet' : `${stage.hours.toLocaleString('de-DE')} h Fokuszeit benötigt`}</span>
+          </button></li>
+        })}</ul>
       </div>
 
       </fieldset>

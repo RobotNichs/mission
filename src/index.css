@@ -570,6 +570,26 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-
 .debug-level-preview { display: grid; justify-items: start; gap: 12px; margin: 18px 0; }
 .debug-level-preview input { width: min(360px, 100%); }
 .debug-preview-orb { justify-self: center; }
+.prestige-lines { fill: none; stroke: var(--orb-light); stroke-width: .8; opacity: .75; }
+.prestige-aura { position: absolute; inset: 1%; border-radius: 50%; border: 1px solid var(--orb-light); background: transparent; opacity: .45; pointer-events: none; }
+.prestige-astral .orb-surface { inset: 10%; }
+.prestige-orbit .orb-surface { inset: 8%; background: radial-gradient(circle at 30% 25%, #b5e5e9, #326f79 40%, #392254 80%); }
+.prestige-pulsar .prestige-aura { border: 3px solid #9b7bd2; box-shadow: inset 0 0 8px #9b7bd266; animation: prestige-pulse 8s ease-in-out infinite; }
+.prestige-pulsar .orb-surface { inset: 10%; }
+.prestige-zenith .orb-surface { background: radial-gradient(ellipse at 35% 20%, #b29b63, transparent 25%), radial-gradient(circle, #1d2330, #080f1b 80%); }
+.prestige-zenith .prestige-lines { stroke: #ecd798; }
+.prestige-singularity .orb-surface { inset: 12%; }
+.prestige-singularity .prestige-aura { inset: 2%; border: 0; opacity: .7; background: conic-gradient(#8edddc55, #b597d355, #eee6c155, #8edddc55); animation: prestige-iridescence 40s linear infinite; }
+.prestige-singularity .orb-detail { stroke: #e8edff; }
+.prestige-orbit.is-animated .orb-detail, .prestige-zenith.is-animated .orb-detail { animation-duration: 40s; }
+@keyframes prestige-pulse { 50% { opacity: .65; transform: scale(.96); } }
+@keyframes prestige-iridescence { to { transform: rotate(360deg); } }
+.prestige-collection-title { margin: 24px 0 8px; font-size: 16px; color: var(--accent); }
+.prestige-stages.prestige-orb-path li { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; }
+.prestige-orb-path .orb-art { grid-row: span 2; }
+.prestige-orb-path li > span:last-child { color: var(--muted); }
+@media (max-width: 520px) { .prestige-stages.prestige-orb-path li { grid-template-columns: 46px minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .prestige-aura { animation: none !important; } }
 .prestige-panel { margin: 20px 0; padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); }
 .prestige-panel summary { cursor: pointer; font-weight: 600; }
 .prestige-panel summary span { color: var(--muted); font-size: 12px; margin-left: 12px; font-weight: 400; }

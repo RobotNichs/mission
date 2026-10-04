@@ -1,3 +1,4 @@
+import { getEquippedOrb } from './services/prestigeOrbs'
 import LearningHistory from './components/LearningHistory'
 import PrestigePanel from './components/PrestigePanel'
 import { measureOrb, type OrbOrigin } from './services/focusTransition'
@@ -12,7 +13,7 @@ import OrbCrateShop from './components/OrbCrateShop'
 import GamificationPanel from './components/GamificationPanel'
 import MissionRewardDialog from './components/MissionRewardDialog'
 import FocusMode from './components/FocusMode'
-import { defaultOrb, orbCollection } from './services/orbCatalog'
+import { defaultOrb } from './services/orbCatalog'
 import {
   recordMissionCompletion,
   addFocusTime,
@@ -561,7 +562,7 @@ function App() {
 
   if (isFocusMode) return (
     <>
-      <FocusMode mission={mission} orb={orbCollection.find((orb) => orb.id === gamification.equippedOrbId) ?? defaultOrb}
+      <FocusMode mission={mission} orb={getEquippedOrb(gamification)}
         orbOrigin={orbOrigin.current}
         environment={focusEnvironment} onEnvironmentChange={changeFocusEnvironment} environmentNotice={environmentNotice}
         level={getLevel(gamification.totalFocusMilliseconds / 60000)}

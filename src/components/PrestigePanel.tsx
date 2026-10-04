@@ -1,4 +1,6 @@
-import { formatPrestigeTime, getPrestige, prestigeMilestones } from '../services/prestige'
+import { formatPrestigeTime, getPrestige } from '../services/prestige'
+import { prestigeOrbs } from '../services/prestigeOrbs'
+import OrbVisual from './OrbVisual'
 
 export default function PrestigePanel({ focusMilliseconds }: { focusMilliseconds: number }) {
   const prestige = getPrestige(focusMilliseconds)
@@ -13,10 +15,10 @@ export default function PrestigePanel({ focusMilliseconds }: { focusMilliseconds
       aria-valuenow={prestige.progress} aria-valuetext={prestige.next ? `Fortschritt zu Prestige ${prestige.next.label}` : 'Maximaler Prestige-Rang V'}>
       <span style={{ width: `${prestige.progress}%` }} />
     </div>
-    <ol className="prestige-stages">{prestigeMilestones.map(stage => <li key={stage.id}>
-      <strong>Prestige {stage.label}</strong><span>{stage.hours.toLocaleString('de-DE')} h gesamt</span>
-      <span>{prestige.rank >= stage.rank ? 'Erreicht' : 'Gesperrt'}</span><small>Kommt in Phase 7B</small>
+    <ol className="prestige-stages prestige-orb-path">{prestigeOrbs.map(({ stage, orb }) => <li key={stage.id} className={prestige.rank >= stage.rank ? 'is-reached' : 'is-locked'}>
+      <OrbVisual orb={orb} /><strong>Prestige {stage.label}</strong><span>{orb.name}</span><span>{stage.hours.toLocaleString('de-DE')} h gesamt</span>
+      <span>{prestige.rank >= stage.rank ? 'Freigeschaltet' : 'Gesperrt'}</span>
     </li>)}</ol>
-    <p className="prestige-note">Kosmetische Belohnungen: Kommt in Phase 7B. Level, Coins und Orbs bleiben erhalten.</p>
+    <p className="prestige-note">Prestige-Orbs sind kostenlos in deiner Sammlung auswählbar. Level, Coins und bisherige Orbs bleiben erhalten.</p>
   </details>
 }

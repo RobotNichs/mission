@@ -1,3 +1,4 @@
+import { getEquippedOrb, prestigeOrbs } from '../services/prestigeOrbs'
 import { useState } from 'react'
 import PrestigePreview from './PrestigePreview'
 import type { GamificationState } from '../types/gamification'
@@ -6,7 +7,6 @@ import { applyDebugAction, type DebugAction } from '../services/gamificationDebu
 import { isLocalDevelopment } from '../services/developmentMode'
 import { getOrbSize } from '../services/orbSize'
 import OrbVisual from './OrbVisual'
-import { defaultOrb } from '../services/orbCatalog'
 
 type Props = {
   state: GamificationState
@@ -18,6 +18,7 @@ export default function GamificationDebug({ state, enabled, onChange }: Props) {
   const [orbId, setOrbId] = useState(orbCollection[0].id)
   const [notice, setNotice] = useState<string | null>(null)
   const [previewLevel, setPreviewLevel] = useState(1)
+  const [previewOrbId, setPreviewOrbId] = useState('equipped')
   if (!isLocalDevelopment(import.meta.env.DEV, window.location.hostname)) return null
 
   function apply(action: DebugAction) {
@@ -32,6 +33,14 @@ export default function GamificationDebug({ state, enabled, onChange }: Props) {
       <p className="shop-description">Nur für lokale Entwicklung. Testwerte werden auf diesem Gerät gespeichert; vorhandene Daten bleiben erhalten. Keine Fokuszeit und keine Level durch diese Aktionen.</p>
       <PrestigePreview />
       <section className="debug-level-preview" aria-label="Visuelle Level-Vorschau">
+        <label className="field-label" htmlFor="debug-prestige-orb">Prestige-Orb-Vorschau</label>
+        <select id="debug-prestige-orb" value={previewOrbId} onChange={event => {
+          const id = event.target.value
+          if (id === 'equipped' || prestigeOrbs.some(item => item.orb.id === id)) setPreviewOrbId(id)
+        }}>
+          <option value="equipped">Ausgerüsteten Orb anzeigen</option>
+          {prestigeOrbs.map(({ orb }) => <option key={orb.id} value={orb.id}>{orb.name}</option>)}
+        </select>
         <label className="field-label" htmlFor="debug-level-preview">Orb-Größe für Vorschau-Level {previewLevel}</label>
         <input id="debug-level-preview" type="range" min={1} max={100} step={1} value={previewLevel}
           onChange={event => {
@@ -39,10 +48,11 @@ export default function GamificationDebug({ state, enabled, onChange }: Props) {
             if (Number.isInteger(value) && value >= 1 && value <= 100) setPreviewLevel(value)
           }} />
         <p>Nur visuell. Dein echtes Spielerlevel und alle Fortschrittsdaten bleiben unverändert.</p>
-        <OrbVisual orb={orbCollection.find(orb => orb.id === state.equippedOrbId) ?? defaultOrb}
+        <OrbVisual orb={prestigeOrbs.find(item => item.orb.id === previewOrbId)?.orb ?? getEquippedOrb(state)}
           className="debug-preview-orb" label={`Orb-Vorschau, Level ${previewLevel}`}
           style={{ width: `${getOrbSize(previewLevel, 'focus')}px`, height: 'auto', aspectRatio: '1' }} />
         <button className="focus-leave" type="button" onClick={() => setPreviewLevel(1)}>Level-Vorschau zurücksetzen</button>
+        <button className="focus-leave" type="button" onClick={() => setPreviewOrbId('equipped')}>Orb-Vorschau zurücksetzen</button>
       </section>
       <div className="shop-confirm-actions">
         <button className="shop-action crate-buy" type="button" disabled={!enabled} onClick={() => apply({ type: 'add-test-coins' })}>300 Test-Coins hinzufügen</button>

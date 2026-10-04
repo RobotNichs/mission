@@ -1,12 +1,11 @@
+import { getEquippedOrb } from '../services/prestigeOrbs'
 import { getOrbSize } from '../services/orbSize'
 import type { Ref } from 'react'
 import OrbVisual from './OrbVisual'
-import { defaultOrb } from '../services/orbCatalog'
 import type { GamificationState } from '../types/gamification'
 import {
   getLevel,
   getLevelStartMinutes,
-  orbCollection,
 } from '../services/gamification'
 
 type GamificationPanelProps = {
@@ -21,7 +20,7 @@ export default function GamificationPanel({ state, rewardNotice, coreRef }: Gami
   const withinLevel = focusMinutes - getLevelStartMinutes(level)
   const required = getLevelStartMinutes(level + 1) - getLevelStartMinutes(level)
   const progress = (withinLevel / required) * 100
-  const equippedOrb = orbCollection.find((orb) => orb.id === state.equippedOrbId) ?? defaultOrb
+  const equippedOrb = getEquippedOrb(state)
 
   return (
     <section className="gamification-panel" aria-label="Dein Mission-Fortschritt">

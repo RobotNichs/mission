@@ -7,6 +7,7 @@ import {
 } from '../types/gamification'
 
 import { orbCollection } from './orbCatalog'
+import { canEquipOrb } from './prestigeOrbs'
 export { orbCollection } from './orbCatalog'
 
 export const GAMIFICATION_STORAGE_KEY = 'mission.gamification.v1'
@@ -79,7 +80,7 @@ export function rollOrb(randomRoll: number, itemRoll = 0): OrbDefinition {
 }
 
 export function equipOrb(state: GamificationState, orbId: string | null): GamificationState {
-  if (orbId !== null && (!state.ownedOrbIds.includes(orbId) || !orbCollection.some((orb) => orb.id === orbId))) {
+  if (!canEquipOrb(state, orbId)) {
     return state
   }
   return { ...state, equippedOrbId: orbId }
@@ -155,6 +156,7 @@ export function loadGamificationState(strictStorage = false): GamificationState 
 
     const validOrbIds = new Set(orbCollection.map((orb) => orb.id))
     const ownedOrbIds = strings(value.ownedOrbIds).filter((id) => validOrbIds.has(id))
+    const totalFocusMilliseconds = Math.floor(nonnegative(value.totalFocusMilliseconds))
     const validCosmeticIds = new Set(cosmeticShopItems.map((item) => item.id))
     const ownedCosmeticIds = Array.isArray(value.ownedCosmeticIds)
       ? [...new Set(value.ownedCosmeticIds.filter((id): id is string => typeof id === 'string' && validCosmeticIds.has(id)))]
@@ -174,13 +176,13 @@ export function loadGamificationState(strictStorage = false): GamificationState 
     return {
       version: 2,
       legacyXp: nonnegative(value.legacyXp ?? value.xp),
-      totalFocusMilliseconds: Math.floor(nonnegative(value.totalFocusMilliseconds)),
+      totalFocusMilliseconds,
       coins: nonnegative(value.coins),
       ownedOrbIds,
       completedCratePurchaseIds: strings(value.completedCratePurchaseIds),
       claimedStepRewardKeys: strings(value.claimedStepRewardKeys),
       claimedMissionIds: strings(value.claimedMissionIds),
-      equippedOrbId: typeof value.equippedOrbId === 'string' && ownedOrbIds.includes(value.equippedOrbId)
+      equippedOrbId: typeof value.equippedOrbId === 'string' && canEquipOrb({ ownedOrbIds, totalFocusMilliseconds }, value.equippedOrbId)
         ? value.equippedOrbId
         : null,
       ownedCosmeticIds,

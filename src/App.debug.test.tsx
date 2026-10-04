@@ -7,6 +7,7 @@ import { createTestLocks } from './services/testLocks'
 import { GAMIFICATION_STORAGE_KEY } from './services/gamification'
 import { initialGamificationState } from './types/gamification'
 import { getOrbSize } from './services/orbSize'
+import { canEquipOrb, prestigeOrbs } from './services/prestigeOrbs'
 
 const saved = () => JSON.parse(localStorage.getItem(GAMIFICATION_STORAGE_KEY)!)
 beforeEach(() => {
@@ -17,6 +18,38 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllEnvs(); vi.restoreAllMocks() })
 
 describe('Entwicklungsbereich für Gamification', () => {
+  it('zeigt alle fünf echten Prestige-Orbs bei Prestige 0 mit dem Größenregler ohne Datenänderungen', () => {
+    const state = { ...initialGamificationState, coins: 45, ownedOrbIds: ['orb-rare'], equippedOrbId: 'orb-rare' }
+    const original = JSON.stringify(state)
+    localStorage.setItem(GAMIFICATION_STORAGE_KEY, original)
+    localStorage.setItem('mission.saved-mission.v1', '{"unchanged":true}')
+    const write = vi.spyOn(Storage.prototype, 'setItem'), onChange = vi.fn()
+    render(<GamificationDebug state={state} enabled onChange={onChange} />)
+    fireEvent.click(screen.getByText('Lokaler Gamification-Testmodus'))
+    const select = screen.getByLabelText('Prestige-Orb-Vorschau')
+    for (const { orb } of prestigeOrbs) {
+      fireEvent.change(select, { target: { value: orb.id } })
+      for (const level of [1, 25, 50, 100]) {
+        fireEvent.change(screen.getByRole('slider'), { target: { value: String(level) } })
+        const visual = screen.getByRole('img', { name: `Orb-Vorschau, Level ${level}` }) as HTMLElement
+        expect(visual.getAttribute('data-orb-id')).toBe(orb.id)
+        expect(visual.classList.contains(`prestige-${orb.visual.prestigeStyle}`)).toBe(true)
+        expect(visual.classList.contains('is-animated')).toBe(orb.visual.animated)
+        expect(visual.querySelector('.orb-surface')).toBeTruthy()
+        expect(visual.querySelector('.prestige-aura')).toBeTruthy()
+        expect(visual.querySelector('svg .prestige-lines')).toBeTruthy()
+        expect(visual.style.width).toBe(`${getOrbSize(level, 'focus')}px`)
+        expect(canEquipOrb(state, orb.id)).toBe(false)
+      }
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Orb-Vorschau zurücksetzen' }))
+    expect(screen.getByRole('img', { name: 'Orb-Vorschau, Level 100' }).getAttribute('data-orb-id')).toBe('orb-rare')
+    expect(onChange).not.toHaveBeenCalled()
+    expect(write).not.toHaveBeenCalled()
+    expect(JSON.stringify(state)).toBe(original)
+    expect(localStorage.getItem(GAMIFICATION_STORAGE_KEY)).toBe(original)
+    expect(localStorage.getItem('mission.saved-mission.v1')).toBe('{"unchanged":true}')
+  })
   it('übernimmt verschiedene Vorschaugrößen mit dem echten Stylesheet ohne starre CSS-Kappung', async () => {
     const { readFileSync } = await import(/* @vite-ignore */ 'node:' + 'fs')
     const stylesheet = document.createElement('style')
