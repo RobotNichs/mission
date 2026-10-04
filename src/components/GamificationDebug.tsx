@@ -39,7 +39,7 @@ export default function GamificationDebug({ state, enabled, onChange }: Props) {
         <p>Nur visuell. Dein echtes Spielerlevel und alle Fortschrittsdaten bleiben unverändert.</p>
         <OrbVisual orb={orbCollection.find(orb => orb.id === state.equippedOrbId) ?? defaultOrb}
           className="debug-preview-orb" label={`Orb-Vorschau, Level ${previewLevel}`}
-          style={{ width: `min(${getOrbSize(previewLevel, 'focus')}px, 100%)`, height: 'auto', aspectRatio: '1' }} />
+          style={{ width: `${getOrbSize(previewLevel, 'focus')}px`, height: 'auto', aspectRatio: '1' }} />
         <button className="focus-leave" type="button" onClick={() => setPreviewLevel(1)}>Level-Vorschau zurücksetzen</button>
       </section>
       <div className="shop-confirm-actions">

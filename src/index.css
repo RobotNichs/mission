@@ -570,6 +570,63 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-
 .debug-level-preview { display: grid; justify-items: start; gap: 12px; margin: 18px 0; }
 .debug-level-preview input { width: min(360px, 100%); }
 .debug-preview-orb { justify-self: center; }
+/* Focus scenery is decorative, local and independent of session accounting. */
+.focus-mode { position: relative; isolation: isolate; }
+.focus-orb-motion { position: absolute; inset: 0; }
+.focus-mode[data-focus-entering='true'] .focus-orb-motion { z-index: 2; }
+.focus-return { animation: focus-return 180ms ease-out both; }
+@keyframes focus-return { from { opacity: .7; } to { opacity: 1; } }
+.focus-backdrop { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: #080e18; }
+.focus-atmosphere, .focus-atmosphere-detail { position: absolute; inset: -5%; pointer-events: none; }
+.environment-deep-space .focus-atmosphere {
+  background-image: radial-gradient(circle at 12% 16%, #bdcede99 0 .8px, transparent 1.3px), radial-gradient(circle at 41% 72%, #819cb866 0 .6px, transparent 1.2px), radial-gradient(circle at 83% 31%, #d1dcdf77 0 1px, transparent 1.6px), radial-gradient(circle at 67% 89%, #8faab888 0 .8px, transparent 1.4px), radial-gradient(circle at 26% 48%, #b8bed955 0 .6px, transparent 1.2px), radial-gradient(circle at 92% 63%, #91a0bb88 0 .7px, transparent 1.3px);
+  background-size: 379px 431px;
+  animation: space-drift 150s linear infinite alternate;
+}
+.environment-deep-space .focus-atmosphere-detail {
+  background-image: radial-gradient(circle at 22% 32%, #d0e1edbb 0 1.4px, transparent 2px), radial-gradient(circle at 73% 14%, #a6c7df99 0 1px, transparent 1.7px), radial-gradient(circle at 53% 69%, #dce5efaa 0 1.2px, transparent 1.9px), radial-gradient(circle at 86% 87%, #c2cced88 0 .9px, transparent 1.5px);
+  background-size: 613px 547px;
+  animation: space-near-drift 110s linear infinite alternate;
+}
+.environment-nebula .focus-atmosphere {
+  background: radial-gradient(ellipse at 25% 35%, #30476b60, transparent 55%), radial-gradient(ellipse at 75% 60%, #49366255, transparent 60%);
+  animation: nebula-drift 100s ease-in-out infinite alternate;
+}
+.environment-nebula .focus-atmosphere-detail { background: radial-gradient(ellipse at 50% 50%, #080e18aa, transparent 75%); }
+.environment-liquid .focus-atmosphere {
+  inset: -12%; background: radial-gradient(ellipse at 40% 60%, #103b4966, transparent 70%);
+  animation: liquid-drift 32s ease-in-out infinite alternate;
+}
+.environment-liquid .focus-atmosphere-detail {
+  inset: -12%; opacity: .6; transform: translateY(40px);
+  animation: liquid-reflection 43s ease-in-out infinite alternate;
+}
+.environment-liquid svg { width: 100%; height: 100%; overflow: visible; fill: none; stroke: #357f8d; stroke-width: 18px; opacity: .22; filter: blur(7px); }
+.environment-liquid .focus-atmosphere-detail svg { stroke: #6aa8b6; stroke-width: 3px; opacity: .2; filter: blur(2px); }
+@keyframes space-drift { to { transform: translate3d(45px, 20px, 0); } }
+@keyframes space-near-drift { to { transform: translate3d(85px, 30px, 0); } }
+@keyframes nebula-drift { to { transform: translate3d(3%, -2%, 0) scale(1.04); } }
+@keyframes liquid-drift { to { transform: translate3d(55px, 18px, 0) scaleY(1.06); } }
+@keyframes liquid-reflection { to { transform: translate3d(-45px, 12px, 0) scaleY(.96); } }
+.focus-mode[data-background-motion='paused'] .focus-atmosphere { animation-play-state: paused; }
+.focus-mode[data-background-motion='paused'] .focus-atmosphere-detail { animation-play-state: paused; }
+.focus-environment-picker { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; max-width: 320px; min-width: 0; font-size: 12px; color: var(--muted); }
+.environment-current { font-size: 11px; }
+.environment-panel { position: absolute; top: calc(100% + 8px); left: 0; z-index: 10; width: min(300px, calc(100vw - 48px)); padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: 0 12px 36px #0008; }
+.environment-deep-space .focus-atmosphere, .environment-deep-space .focus-atmosphere-detail { inset: -100px; }
+.focus-environment-picker summary { cursor: pointer; padding: 10px 0; }
+.focus-environment-picker label { display: grid; gap: 8px; color: var(--ink); }
+.focus-environment-picker select { appearance: auto; padding: 8px; }
+.focus-environment-picker p, .environment-notice { font-size: 12px; line-height: 1.6; }
+.focus-current-step { display: grid; gap: 6px; padding: 16px; border: 1px solid var(--line); border-radius: 6px; background: #0b1421e6; overflow-wrap: anywhere; }
+.focus-learning { padding: 18px; border-radius: 10px; background: #080e18c9; }
+@media (max-width: 520px) {
+  .timer-panel > .focus-environment-picker { width: 100%; max-width: none; }
+  .focus-learning { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-backdrop .focus-atmosphere, .focus-backdrop .focus-atmosphere-detail { animation: none !important; }
+}
 /* Mission Control: shared interface tokens; procedural orb skins stay independent. */
 :root {
   color-scheme: dark;
@@ -668,7 +725,7 @@ button:disabled { cursor: not-allowed; }
 .mission-support > .gamification-panel, .mission-support > .coin-shop { margin: 0; padding: 20px; }
 .mission-support > .gamification-debug { grid-column: 1 / -1; padding: 12px 16px; background: transparent; border-style: dashed; }
 .gamification-debug summary { color: var(--muted); cursor: pointer; font-size: var(--text-small); }
-.gamification-debug .debug-preview-orb { max-width: 280px; }
+.gamification-debug .debug-preview-orb { max-width: 100%; }
 .mission-core { animation: none; box-shadow: none; border: 0; }
 .core-caption { font-size: 10px; }
 .coin-count strong { color: var(--ink); font: 16px var(--font-data); }

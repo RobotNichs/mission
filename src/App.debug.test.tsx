@@ -17,6 +17,30 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllEnvs(); vi.restoreAllMocks() })
 
 describe('Entwicklungsbereich für Gamification', () => {
+  it('übernimmt verschiedene Vorschaugrößen mit dem echten Stylesheet ohne starre CSS-Kappung', async () => {
+    const { readFileSync } = await import(/* @vite-ignore */ 'node:' + 'fs')
+    const stylesheet = document.createElement('style')
+    stylesheet.textContent = readFileSync('src/index.css', 'utf8')
+    document.head.appendChild(stylesheet)
+    try {
+      render(<GamificationDebug state={initialGamificationState} enabled onChange={vi.fn()} />)
+      fireEvent.click(screen.getByText('Lokaler Gamification-Testmodus'))
+      const widths: number[] = []
+      for (const level of [1, 25, 50, 100]) {
+        fireEvent.change(screen.getByRole('slider'), { target: { value: String(level) } })
+        const computed = getComputedStyle(screen.getByRole('img', { name: `Orb-Vorschau, Level ${level}` }))
+        widths.push(parseFloat(computed.width))
+        expect(computed.maxWidth).toBe('100%')
+        expect(computed.height).toBe('auto')
+        expect(computed.aspectRatio).toBe('1 / 1')
+      }
+      expect(widths[0]).toBe(280)
+      expect(widths[1]).toBeGreaterThan(widths[0])
+      expect(widths[2]).toBeGreaterThan(widths[1])
+      expect(widths[3]).toBeGreaterThan(widths[2])
+      expect(widths[3]).toBe(420)
+    } finally { stylesheet.remove() }
+  })
   it('zeigt Level 1 bis 100 rein visuell, nutzt Orb-Größe und schreibt keine Fortschrittsdaten', () => {
     const state = { ...initialGamificationState, coins: 45, totalFocusMilliseconds: 1800000, ownedOrbIds: ['orb-rare'], equippedOrbId: 'orb-rare' }
     const original = JSON.stringify(state)
@@ -32,7 +56,7 @@ describe('Entwicklungsbereich für Gamification', () => {
     for (const level of [1, 2, 10, 100]) {
       fireEvent.change(slider, { target: { value: String(level) } })
       const orb = screen.getByRole('img', { name: `Orb-Vorschau, Level ${level}` })
-      expect((orb as HTMLElement).style.width).toBe(`min(${getOrbSize(level, 'focus')}px, 100%)`)
+      expect((orb as HTMLElement).style.width).toBe(`${getOrbSize(level, 'focus')}px`)
       expect(orb.getAttribute('data-orb-id')).toBe('orb-rare')
     }
     fireEvent.click(screen.getByRole('button', { name: 'Level-Vorschau zurücksetzen' }))

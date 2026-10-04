@@ -1,4 +1,7 @@
 import LearningHistory from './components/LearningHistory'
+import { measureOrb, type OrbOrigin } from './services/focusTransition'
+import FocusEnvironmentPicker from './components/FocusEnvironmentPicker'
+import { loadFocusEnvironment, saveFocusEnvironment, type FocusEnvironment } from './services/focusEnvironment'
 import OrbCollectionDialog from './components/OrbCollectionDialog'
 import { normalizeHistory, normalizeActiveSession, finishLearningSession, type SessionHistoryEntry, type ActiveLearningSession } from './services/learningHistory'
 import PlanEditor from './components/PlanEditor'
@@ -188,6 +191,14 @@ function formatTime(totalSeconds: number) {
 }
 
 function App() {
+  const dashboardOrb = useRef<HTMLDivElement>(null)
+  const orbOrigin = useRef<OrbOrigin | null>(null)
+  const [focusEnvironment, setFocusEnvironment] = useState(loadFocusEnvironment)
+  const [environmentNotice, setEnvironmentNotice] = useState<string | null>(null)
+  function changeFocusEnvironment(value: FocusEnvironment) {
+    setFocusEnvironment(value)
+    setEnvironmentNotice(saveFocusEnvironment(value) ? null : 'Die Umgebung gilt für diesen Besuch, konnte aber nicht gespeichert werden.')
+  }
   const [collectionOpen, setCollectionOpen] = useState(false)
   const [saved] = useState(readSavedMission)
   const [history, setHistory] = useState(saved?.history ?? [])
@@ -511,6 +522,7 @@ function App() {
   function toggleTimer() {
     if (!writer.current) return
     if (session.current) { stopTimer(); return }
+    if (!isFocusMode) orbOrigin.current = measureOrb(dashboardOrb.current, gamification.equippedOrbId ?? defaultOrb.id)
     const duration = mission?.timeMode === 'stopwatch' ? 0 : remainingSeconds > 0 ? remainingSeconds : (mission?.timeBudgetMinutes ?? 25) * 60
     if (remainingSeconds === 0 && mission?.timeMode !== 'stopwatch') {
       setElapsedSeconds(0)
@@ -549,6 +561,8 @@ function App() {
   if (isFocusMode) return (
     <>
       <FocusMode mission={mission} orb={orbCollection.find((orb) => orb.id === gamification.equippedOrbId) ?? defaultOrb}
+        orbOrigin={orbOrigin.current}
+        environment={focusEnvironment} onEnvironmentChange={changeFocusEnvironment} environmentNotice={environmentNotice}
         level={getLevel(gamification.totalFocusMilliseconds / 60000)}
         countdown={formatTime(mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)} stopwatch={mission?.timeMode === 'stopwatch'} isRunning={isRunning} finished={mission?.timeMode !== 'stopwatch' && remainingSeconds === 0}
         enabled={canWrite} error={storageError} onToggleTimer={toggleTimer} onResetTimer={resetTimer}
@@ -563,7 +577,7 @@ function App() {
   return (
     <fieldset className="mission-writer-surface" disabled={!canWrite}>
     {!canWrite && <p role="status" className="writer-notice">{storageError ?? 'Mission ist in einem anderen Tab aktiv. Dieser Tab zeigt den gespeicherten Stand und übernimmt nach dessen Schließen.'}</p>}
-    <main className={`app-shell theme-${gamification.selectedBackgroundId}`}>
+    <main className={`app-shell theme-${gamification.selectedBackgroundId} ${hasEnteredFocus.current ? 'focus-return' : ''}`}>
       <header className="topbar">
         <a className="brand" href="#start" aria-label="Mission Startseite">
           <span className="brand-mark">m<span>.</span></span>
@@ -781,6 +795,8 @@ function App() {
       </div>
 
       <section className="timer-panel" aria-label="Lern-Timer">
+        <FocusEnvironmentPicker value={focusEnvironment} onChange={changeFocusEnvironment} />
+        {environmentNotice && <p className="environment-notice">{environmentNotice}</p>}
         <div className="timer-message">
           <div className="timer-icon">◷</div>
           <div><p className="section-kicker">BLEIB IM FLOW</p><h2>Zeit für deinen Fokus.</h2></div>
@@ -801,6 +817,7 @@ function App() {
 
       <div className="mission-support">
       <GamificationPanel
+        coreRef={dashboardOrb}
         state={gamification}
         rewardNotice={rewardNotice}
       />

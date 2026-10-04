@@ -1,4 +1,5 @@
 import { getOrbSize } from '../services/orbSize'
+import type { Ref } from 'react'
 import OrbVisual from './OrbVisual'
 import { defaultOrb } from '../services/orbCatalog'
 import type { GamificationState } from '../types/gamification'
@@ -11,9 +12,10 @@ import {
 type GamificationPanelProps = {
   state: GamificationState
   rewardNotice: string | null
+  coreRef?: Ref<HTMLDivElement>
 }
 
-export default function GamificationPanel({ state, rewardNotice }: GamificationPanelProps) {
+export default function GamificationPanel({ state, rewardNotice, coreRef }: GamificationPanelProps) {
   const focusMinutes = state.totalFocusMilliseconds / 60_000
   const level = getLevel(focusMinutes)
   const withinLevel = focusMinutes - getLevelStartMinutes(level)
@@ -24,7 +26,7 @@ export default function GamificationPanel({ state, rewardNotice }: GamificationP
   return (
     <section className="gamification-panel" aria-label="Dein Mission-Fortschritt">
       <div className="core-column">
-        <div className={`mission-core core-orb-${state.equippedOrbId ? equippedOrb.rarity : 'default'} core-effect-${state.selectedCoreEffectId}`}
+        <div ref={coreRef} className={`mission-core core-orb-${state.equippedOrbId ? equippedOrb.rarity : 'default'} core-effect-${state.selectedCoreEffectId}`}
           style={{ width: `min(${getOrbSize(level)}px, 100%)`, aspectRatio: '1' }} role="img" aria-label={`Mission Core, Level ${level}`}>
           <OrbVisual orb={equippedOrb} className="core-orb-art" />
           <span className="core-center">{level.toString().padStart(2, '0')}</span>

@@ -1,10 +1,19 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import FocusEnvironmentPicker from './FocusEnvironmentPicker'
+import FocusBackdrop from './FocusBackdrop'
+import useFocusTransition from './useFocusTransition'
+import type { OrbOrigin } from '../services/focusTransition'
+import type { FocusEnvironment } from '../services/focusEnvironment'
 import type { LearningPlan } from '../types/learningPlan'
 import type { OrbDefinition } from '../types/gamification'
 import OrbVisual from './OrbVisual'
 import { getOrbSize } from '../services/orbSize'
 
 type Props = {
+  orbOrigin?: OrbOrigin | null
+  environment?: FocusEnvironment
+  onEnvironmentChange?: (value: FocusEnvironment) => void
+  environmentNotice?: string | null
   mission: LearningPlan | null
   orb: OrbDefinition
   countdown: string
@@ -24,7 +33,15 @@ type Props = {
 }
 
 export default function FocusMode({ mission, orb, countdown, stopwatch, level = 1, isRunning, finished, enabled, error,
-  onToggleTimer, onResetTimer, onToggleStep, onLeave, onEditPlan, onEndSession, onCompleteSession }: Props) {
+  onToggleTimer, onResetTimer, onToggleStep, onLeave, onEditPlan, onEndSession, onCompleteSession,
+  environment = 'still', onEnvironmentChange, environmentNotice, orbOrigin }: Props) {
+  const transition = useFocusTransition(orbOrigin, orb.id)
+  const [visible, setVisible] = useState(() => !document.hidden)
+  useEffect(() => {
+    const update = () => setVisible(!document.hidden)
+    document.addEventListener('visibilitychange', update)
+    return () => document.removeEventListener('visibilitychange', update)
+  }, [])
   const heading = useRef<HTMLHeadingElement>(null)
   const leave = useRef(onLeave)
   leave.current = onLeave
@@ -42,30 +59,34 @@ export default function FocusMode({ mission, orb, countdown, stopwatch, level = 
   const progress = steps.length ? Math.round(completed / steps.length * 100) : 0
 
   return (
-    <main className="focus-mode" aria-label="Fokusmodus">
+    <main ref={transition.root} className={`focus-mode environment-${environment}`} data-focus-entering={transition.entering} data-background-motion={visible && isRunning ? 'running' : 'paused'} aria-label="Fokusmodus">
+      <FocusBackdrop environment={environment} />
       <div className="focus-topline"><span>MISSION · FOKUS</span>
         <button className="focus-leave" type="button" onClick={onLeave}>Fokusmodus verlassen</button></div>
+      {onEnvironmentChange && <FocusEnvironmentPicker value={environment} onChange={onEnvironmentChange} />}
+      {environmentNotice && <p className="environment-notice">{environmentNotice}</p>}
       {onEditPlan && <button className="focus-leave" type="button" disabled={!enabled} onClick={onEditPlan}>Lernplan bearbeiten</button>}
       {error && <p className="writer-notice" role="alert">{error}</p>}
       <section className="focus-session" aria-labelledby="focus-title">
         <h1 id="focus-title" className="focus-title" ref={heading} tabIndex={-1}>Ein Moment für deinen Fokus.</h1>
-        <div className={`focus-orb-stage ${isRunning ? 'is-running' : ''} ${finished ? 'is-finished' : ''}`} style={{ width: `min(${getOrbSize(level, 'focus')}px, 78vw, 100%)` }}>
-          <OrbVisual orb={orb} className="focus-orb" label={orb.name} />
-          <div className="focus-countdown" role="timer" aria-label={`${stopwatch ? 'Vergangene' : 'Verbleibende'} Zeit: ${countdown}`}>
+        <div ref={transition.stage} className={`focus-orb-stage ${isRunning ? 'is-running' : ''} ${finished ? 'is-finished' : ''}`} style={{ width: `min(${getOrbSize(level, 'focus')}px, 78vw, 100%)` }}>
+          <div ref={transition.motion} className="focus-orb-motion"><OrbVisual orb={orb} className="focus-orb" label={orb.name} /></div>
+          <div data-focus-reveal className="focus-countdown" role="timer" aria-label={`${stopwatch ? 'Vergangene' : 'Verbleibende'} Zeit: ${countdown}`}>
             <strong>{countdown}</strong><span>MIN : SEK</span>
           </div>
         </div>
         <p className="focus-session-status" role="status">{finished ? 'Fokuszeit abgeschlossen. Gut gemacht.' : isRunning ? 'Du bist im Fokus.' : 'Pausiert. Dein Fortschritt bleibt erhalten.'}</p>
-        <div className="focus-controls">
+        <div data-focus-reveal inert={transition.entering} className="focus-controls">
           <button className="timer-button" type="button" disabled={!enabled} onClick={onToggleTimer}>{isRunning ? 'Pause' : finished ? 'Weiter' : 'Fortsetzen'}</button>
           <button className="reset-button" type="button" disabled={!enabled} onClick={onResetTimer} aria-label="Timer zurücksetzen">↺</button>
           {onEndSession && <button className="focus-leave" type="button" disabled={!enabled} onClick={onEndSession}>Session beenden</button>}
           {stopwatch && onCompleteSession && <button className="focus-leave" type="button" disabled={!enabled} onClick={onCompleteSession}>Session abschließen</button>}
         </div>
       </section>
-      <section className="focus-learning" aria-labelledby="focus-goal">
+      <section data-focus-reveal inert={transition.entering} className="focus-learning" aria-labelledby="focus-goal">
         <p className="section-kicker">DEIN LERNZIEL</p><h2 id="focus-goal">{mission?.goal ?? 'Zeit für dich und dein Lernen'}</h2>
         {steps.length > 0 ? <>
+          <p className="focus-current-step"><span className="section-kicker">AKTUELLER SCHRITT</span><strong>{steps.find(step => !step.done)?.title ?? 'Alle Schritte erledigt'}</strong></p>
           <div className="progress-copy"><span>Lernfortschritt</span><strong>{completed} von {steps.length} erledigt</strong></div>
           <div className="focus-track" role="progressbar" aria-label="Lernfortschritt" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${progress}%` }} /></div>
           <div className="steps-list focus-steps">{steps.map((step) => (
