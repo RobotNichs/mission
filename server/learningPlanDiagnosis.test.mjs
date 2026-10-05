@@ -32,7 +32,11 @@ describe('sichere KI-Diagnose', () => {
     expect(log).toHaveBeenCalledTimes(1)
     const metadata = JSON.parse(log.mock.calls[0][0])
     expect(metadata.diagnosisId).toBe(result.body.error.diagnosisId)
-    expect(Object.keys(metadata).every(k => ['event', 'diagnosisId', 'category', 'durationMs', 'upstreamStatus', 'schemaCode'].includes(k))).toBe(true)
+    expect(Object.keys(metadata).every(k => ['event', 'diagnosisId', 'category', 'durationMs', 'upstreamStatus', 'schemaCode', 'validationErrors'].includes(k))).toBe(true)
+    for (const detail of metadata.validationErrors ?? []) {
+      expect(Object.keys(detail).every(k => ['schemaCode', 'field', 'stepIndex'].includes(k))).toBe(true)
+      expect(detail.schemaCode).toBe('invalid_step_count')
+    }
     const serialized = JSON.stringify([result, log.mock.calls])
     expect(serialized).not.toContain(key)
     expect(serialized).not.toContain(privateText)

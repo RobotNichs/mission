@@ -34,12 +34,64 @@ function words(value) {
 // This is an explicit text reference, not a semantic or factual correctness check.
 // Ignore organisational words so that "lernen" alone cannot validate any topic.
 const genericTopicWords = new Set(words('ich du wir sie er es ihr mir mich dich uns mein meine meinen dein deine ein eine einer eines einem einen der die das den dem des und oder aber auch mit ohne von vom zum zur zu im in am an auf aus fur als bei nach vor uber ist sind sein habe hat haben mochte mochten will wollen soll sollen kann konnen lernen lerne lernziel lernplan thema themen grundlagen grundlage machen mache verstehen uben ubung aufgabe aufgaben beispiel beispiele schritt schritte teil bereich unterlagen vorhandenen vorhandene bitte heute jetzt zuerst the a an and or to of learn learning study do'))
+for (const word of words('verstehe versteht verstehst mache macht machst lernt lernst aufgabenstellung material materialien vorbereiten vorbereitung wiederholen wiederholung bearbeiten beginnen starten i me my you your we our want would like understand understanding make topic task tasks subject basics example examples notes practice prepare preparation review revision')) genericTopicWords.add(word)
+for (const word of words('muss mussen brauche benotige meine meiner meinen meines unserer diese dieser dieses einen einer wichtig wichtige wichtigsten gezielt gezielte')) genericTopicWords.add(word)
 
-function isTopicSpecific(goal, topicFocus, title, description) {
-  if (typeof topicFocus !== 'string' || topicFocus.trim().length === 0 || topicFocus.length > 120) return false
-  const goalWords = new Set([...words(goal)].filter(word => !genericTopicWords.has(word) && /[a-z]/.test(word)))
-  const stepWords = words(`${topicFocus} ${title} ${description}`)
-  return [...goalWords].some(word => stepWords.has(word))
+// Only exact inflection variants of a full word, never substring or semantic matching.
+function topicForms(word) {
+  return [word, ...(word.length >= 8 && word.endsWith('en') ? [word.slice(0, -2)] : []), ...(word.length >= 6 && word.endsWith('s') ? [word.slice(0, -1)] : [])]
+}
+
+function hasTopicReference(goal, content) {
+  const goalWords = new Set([...words(goal)].filter(word => !genericTopicWords.has(word) && !examWords.has(word) && /[a-z]/.test(word)))
+  const stepWords = new Set([...words(content)].filter(word => !genericTopicWords.has(word)).flatMap(topicForms))
+  return [...goalWords].some(word => topicForms(word).some(form => stepWords.has(form)))
+}
+
+function normalized(value) { return value.toLocaleLowerCase('de').normalize('NFD').replace(/[\u0300-\u036f]/g, '') }
+const examWords = new Set(['klausur', 'klausuren', 'klausurvorbereitung', 'prufung', 'prufungen', 'prufungsvorbereitung', 'prufungsstoff', 'exam', 'exams', 'examination'])
+const examOrganizationWords = new Set(['stoff', 'stoffauswahl', 'lernstoff', 'lernen', 'lernblock', 'vorbereiten', 'vorbereitung', 'vorbereitet', 'priorisierung', 'priorisieren', 'wiederholung', 'vor', 'morgen'])
+function isGeneralExamGoal(context) {
+  const tokens = [...words(context)]
+  return tokens.some(word => examWords.has(word)) && tokens.every(word => genericTopicWords.has(word) || examWords.has(word) || examOrganizationWords.has(word) || /^\d+$/.test(word))
+}
+
+// A small organisational vocabulary, not a dictionary of academic subtopics.
+const coachingPatterns = [
+  /\b(unterlagen|material|materialien|stoff|lernstoff|beispiels?|beispielen|beispielaufgabe|aufgabe|aufgaben|notes|materials|examples?|exercise)\b.*\b(offnen|offne|suchen|suche|finden|finde|wahlen|wahle|auswahlen|markieren|markiere|bearbeiten|bearbeite|nachvollziehen|versuchen|versuche|priorisieren|priorisiere|open|find|choose|try)\b/,
+  /\b(offnen|offne|suchen|suche|finden|finde|wahlen|wahle|auswahlen|markieren|markiere|bearbeiten|bearbeite|nachvollziehen|versuchen|versuche|priorisieren|priorisiere|open|find|choose|try)\b.*\b(unterlagen|material|materialien|stoff|lernstoff|beispiels?|beispielen|beispielaufgabe|aufgabe|aufgaben|notes|materials|examples?|exercise)\b/,
+  /\b(ergebnis|losung|verstandnis|wissen|selbstprufung|self|result|solution)\b.*\b(prufen|prufe|vergleichen|vergleiche|abrufen|testen|check|compare|test)\b|\b(prufen|prufe|vergleichen|vergleiche|abrufen|testen|check|compare|test)\b.*\b(ergebnis|losung|verstandnis|wissen|result|solution)\b/,
+  /\b(notiz|notizen|frage|fragen|lucken|zusammenfassung|nachsten|nachster|nachste|notes|questions|summary|next)\b.*\b(notieren|notiere|festhalten|erstellen|planen|plane|sichern|schreiben|schreibe|write|plan|record)\b|\b(notieren|notiere|festhalten|erstellen|planen|plane|sichern|schreiben|schreibe|write|plan|record)\b.*\b(notiz|notizen|frage|fragen|lucken|zusammenfassung|nachsten|nachster|nachste|notes|questions|summary|next)\b/,
+  /\b(selbstprufung|stoffauswahl|priorisierung|zusammenfassung)\b/,
+]
+function isCoachingStep(step) { return coachingPatterns.some(pattern => pattern.test(normalized(`${step.title} ${step.description}`))) }
+
+// Limited detection of explicitly named subject switches. This is not semantics.
+// Unknown synonyms/subjects may escape detection; these markers never grant validity.
+const namedSubjects = [
+  /\b(java|javascript|python)\b/, /\b(sql|joins?)\b/, /\b(statistik|statistics)\b/,
+  /\b(exponentialfunktionen?|mathematik|mathematics)\b/, /\b(photosynthese|photosynthesis|biologie|biology)\b/,
+  /\b(franzosisch\w*|french)\b/, /\b(astronomie|astronomy|sternbild|sterne)\b/,
+  /\b(chemie|chemistry)\b/, /\b(physik|physics)\b/, /\b(geschichte|history)\b/,
+]
+function hasUnrequestedSubject(context, step) {
+  const source = normalized(context), content = normalized(`${step.topicFocus} ${step.title} ${step.description}`)
+  return namedSubjects.some(pattern => pattern.test(content) && !pattern.test(source))
+}
+
+function diagnosePlanTopic(steps, context) {
+  const generalExam = isGeneralExamGoal(context)
+  const content = steps.map(s => `${s.topicFocus} ${s.title} ${s.description}`).join(' ')
+  if (generalExam) {
+    // Organisational context belongs to the plan, not every individual wording.
+    // Keep explicit unrequested subjects forbidden in every step.
+    const foreign = steps.findIndex(s => hasUnrequestedSubject(context, s))
+    if (foreign >= 0) return foreign
+    return steps.some(isCoachingStep) ? null : -1
+  }
+  if (!hasTopicReference(context, content)) return -1
+  const foreign = steps.findIndex(s => hasUnrequestedSubject(context, s))
+  return foreign < 0 ? null : foreign
 }
 
 export function validatePlanInput(value) {
@@ -67,31 +119,62 @@ export function validatePlanInput(value) {
     ))
 }
 
-export function diagnoseAiPlanDraft(value, input) {
-  if (!hasExactKeys(value, ['clarifyingQuestion', 'steps'])) return 'invalid_response_structure'
-  if (!validQuestion(value.clarifyingQuestion)) return 'invalid_question'
-  if (input.clarification && value.clarifyingQuestion !== null) return 'followup_question_forbidden'
-  if (!Array.isArray(value.steps) || value.steps.length < 1 || value.steps.length > 12) return 'invalid_step_count'
-
-  let totalMinutes = 0
-  let hasLearningActivity = false
-  for (const step of value.steps) {
-    if (!hasExactKeys(step, ['title', 'description', 'minutes', 'kind', 'topicFocus'])) return 'invalid_response_structure'
-    if (typeof step.title !== 'string' || step.title.trim().length === 0 || step.title.length > 90) return 'invalid_step_title'
-    if (typeof step.description !== 'string' || step.description.trim().length === 0 || step.description.length > 600) return 'invalid_step_description'
-    if (!Number.isInteger(step.minutes) || step.minutes < 1 || step.minutes > input.timeBudgetMinutes) return 'invalid_step_minutes'
-    const topicContext = input.clarification && !input.clarification.skipped
-      ? `${input.goal} ${input.clarification.answer}`
-      : input.goal
-    if (!stepKinds.has(step.kind)) return 'invalid_step_type'
-    if (!isTopicSpecific(topicContext, step.topicFocus, step.title, step.description)) return 'topic_reference_missing'
-    if (learningKinds.has(step.kind)) hasLearningActivity = true
-    totalMinutes += step.minutes
+export function diagnoseAiPlanDraftDetails(value, input) {
+  const errors = []
+  const add = (schemaCode, field, stepIndex) => {
+    if (errors.length < 8 && !errors.some(error => error.schemaCode === schemaCode)) errors.push({ schemaCode, ...(field ? { field } : {}), ...(stepIndex !== undefined ? { stepIndex } : {}) })
   }
+  if (!hasExactKeys(value, ['clarifyingQuestion', 'steps'])) { add('invalid_response_structure'); return errors }
+  if (!validQuestion(value.clarifyingQuestion)) add('invalid_question', 'clarifyingQuestion')
+  if (input.clarification && value.clarifyingQuestion !== null) add('followup_question_forbidden', 'clarifyingQuestion')
+  if (!Array.isArray(value.steps) || value.steps.length < 1 || value.steps.length > 12) { add('invalid_step_count', 'steps'); return errors }
+  let totalMinutes = 0
+  let allMinutesValid = true
+  let allKindsValid = true
+  let allTopicFieldsValid = true
+  let hasLearningActivity = false
+  for (const [stepIndex, step] of value.steps.entries()) {
+    if (!hasExactKeys(step, ['title', 'description', 'minutes', 'kind', 'topicFocus'])) {
+      add('invalid_response_structure', 'steps', stepIndex); allMinutesValid = false; allKindsValid = false; allTopicFieldsValid = false; continue
+    }
+    const titleValid = typeof step.title === 'string' && step.title.trim().length > 0 && step.title.length <= 90
+    const descriptionValid = typeof step.description === 'string' && step.description.trim().length > 0 && step.description.length <= 600
+    if (!titleValid) add('invalid_step_title', 'title', stepIndex)
+    if (!descriptionValid) add('invalid_step_description', 'description', stepIndex)
+    if (!Number.isInteger(step.minutes) || step.minutes < 1 || step.minutes > input.timeBudgetMinutes) {
+      add('invalid_step_minutes', 'minutes', stepIndex); allMinutesValid = false
+    } else totalMinutes += step.minutes
+    if (!stepKinds.has(step.kind)) { add('invalid_step_type', 'kind', stepIndex); allKindsValid = false }
+    const focusValid = typeof step.topicFocus === 'string' && step.topicFocus.trim().length > 0 && step.topicFocus.length <= 120
+    if (!focusValid) add('topic_reference_missing', 'topicFocus', stepIndex)
+    if (!focusValid || !titleValid || !descriptionValid) allTopicFieldsValid = false
+    if (learningKinds.has(step.kind)) hasLearningActivity = true
+  }
+  if (allTopicFieldsValid) {
+    const topicContext = input.clarification && !input.clarification.skipped ? `${input.goal} ${input.clarification.answer}` : input.goal
+    const topicError = diagnosePlanTopic(value.steps, topicContext)
+    if (topicError !== null) add('topic_reference_missing', topicError < 0 ? 'steps' : undefined, topicError < 0 ? undefined : topicError)
+  }
+  if (allMinutesValid && totalMinutes !== input.timeBudgetMinutes) add('minutes_total_mismatch', 'minutes')
+  if (allKindsValid && !hasLearningActivity) add('learning_activity_missing', 'kind')
+  return errors
+}
 
-  if (totalMinutes !== input.timeBudgetMinutes) return 'minutes_total_mismatch'
-  if (!hasLearningActivity) return 'learning_activity_missing'
-  return null
+export function diagnoseAiPlanDraft(value, input) {
+  return diagnoseAiPlanDraftDetails(value, input)[0]?.schemaCode ?? null
+}
+
+// Advisory checks only: wording cannot reliably establish pedagogical quality.
+export function diagnosePlanQuality(value) {
+  if (!Array.isArray(value?.steps) || !value.steps.length) return []
+  const warnings = []
+  const action = /\b(offne|suche|markiere|notiere|schreibe|bearbeite|rechne|berechne|lies|lese|vergleiche|versuche|fuhre|zeichne|decke|open|find|read|write|mark|try|compare|solve)\b/
+  const normalized = text => typeof text === 'string' ? (text.toLocaleLowerCase('de').normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/[a-z0-9]+/g) ?? []).join(' ') : ''
+  if (!action.test(normalized(value.steps[0].description))) warnings.push('concrete_start_unclear')
+  const signatures = value.steps.map(s => normalized(`${s.title} ${s.description}`))
+  if (new Set(signatures).size < signatures.length) warnings.push('repeated_step_text')
+  if (value.steps.some(s => s.minutes <= 5 && (normalized(s.description).match(/\b(und|and|danach|anschliessend|then)\b/g) ?? []).length >= 3)) warnings.push('short_step_overload_possible')
+  return warnings
 }
 
 export function validateAiPlanDraft(value, input) {

@@ -104,6 +104,11 @@ describe('aktiver Lernplan und Formulareingaben', () => {
   })
 
   it('wendet die neue Zeit erst beim Aktualisieren an, stoppt den Timer und erhält passende Häkchen', async () => {
+    // Stable simulated steps isolate progress preservation from fallback wording/count.
+    installLearningPlanApiMock(request => mockPlanResponse(request, null, [
+      { title: 'SQL-Beispiel bearbeiten', description: 'Bearbeite ein vorhandenes SQL-Beispiel.', kind: 'learning' },
+      { title: 'SQL-Ergebnis prüfen', description: 'Vergleiche das Ergebnis mit deinen SQL-Unterlagen.', kind: 'practice' },
+    ]))
     render(<App />)
     await createMission('SQL-JOINs üben', 15)
     const firstCheckbox = screen.getAllByRole('checkbox')[0]
@@ -245,6 +250,10 @@ describe('aktiver Lernplan und Formulareingaben', () => {
   })
 
   it('vergibt beim Abhaken keine Coins oder Orbs, wenn dieselbe aktive Mission aktualisiert oder Schritte erneut abgehakt werden', async () => {
+    installLearningPlanApiMock(request => mockPlanResponse(request, null, [
+      { title: 'Java-Beispiel bearbeiten', description: 'Bearbeite ein vorhandenes Java-Beispiel.', kind: 'learning' },
+      { title: 'Java-Ergebnis prüfen', description: 'Vergleiche das Ergebnis mit deinen Java-Unterlagen.', kind: 'practice' },
+    ]))
     render(<App />)
     await createMission('Java-Objekte üben', 10)
     const [firstStep, secondStep] = screen.getAllByRole('checkbox') as HTMLInputElement[]
@@ -289,6 +298,10 @@ describe('aktiver Lernplan und Formulareingaben', () => {
   })
 
   it('erhält die Schrittzuordnung ohne Belohnung auch bei veränderten IDs und neu formulierten Titeln', async () => {
+    installLearningPlanApiMock(request => mockPlanResponse(request, null, [
+      { title: 'Java-Vererbung nachvollziehen', description: 'Lies ein vorhandenes Java-Beispiel zur Vererbung.', kind: 'learning' },
+      { title: 'Java-Vererbung versuchen', description: 'Versuche den ersten Schritt im vorhandenen Java-Beispiel.', kind: 'practice' },
+    ]))
     render(<App />)
     await createMission('Java-Vererbung verstehen', 15)
     const oldMission = JSON.parse(localStorage.getItem('mission.saved-mission.v1') ?? 'null').mission
@@ -329,7 +342,7 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     const storedState = JSON.parse(localStorage.getItem('mission.saved-mission.v1') ?? 'null')
     expect(storedState.form.learningBlocker).toBe('focus')
     expect(storedState.mission.learningBlocker).toBe('focus')
-    expect(document.querySelector('.steps-list')?.textContent).toContain('Schalte Ablenkungen aus')
+    expect(document.querySelector('.steps-list')?.textContent).toContain('Schließe ablenkende Tabs')
   })
 
   it('rüstet nur freigeschaltete Orbs aus und behält den Core-Look nach einem Reload', () => {
@@ -391,8 +404,7 @@ describe('aktiver Lernplan und Formulareingaben', () => {
     }))
     render(<App />)
     await createMission('Java-Schleifen üben', 5)
-    fireEvent.click(screen.getAllByRole('checkbox')[0])
-    fireEvent.click(screen.getAllByRole('checkbox')[1])
+    for (const step of screen.getAllByRole('checkbox')) fireEvent.click(step)
 
     const dialog = screen.getByRole('dialog', { name: 'Starker Abschluss.' })
     expect(dialog.textContent).toContain('Alle Schritte erledigt')

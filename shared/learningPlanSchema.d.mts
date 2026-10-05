@@ -26,3 +26,6 @@ export function validateLearningPlanResponse(value: unknown, input: LearningPlan
 
 export type PlanDiagnosisCode = 'invalid_response_structure' | 'invalid_question' | 'followup_question_forbidden' | 'invalid_step_count' | 'invalid_step_title' | 'invalid_step_description' | 'invalid_step_minutes' | 'invalid_step_type' | 'topic_reference_missing' | 'minutes_total_mismatch' | 'learning_activity_missing'
 export function diagnoseAiPlanDraft(value: unknown, input: LearningPlanRequest): PlanDiagnosisCode | null
+export type PlanDiagnosisDetail = { schemaCode: PlanDiagnosisCode; field?: 'clarifyingQuestion' | 'steps' | 'title' | 'description' | 'minutes' | 'kind' | 'topicFocus'; stepIndex?: number }
+export function diagnoseAiPlanDraftDetails(value: unknown, input: LearningPlanRequest): PlanDiagnosisDetail[]
+export function diagnosePlanQuality(value: unknown): ('concrete_start_unclear' | 'repeated_step_text' | 'short_step_overload_possible')[]
