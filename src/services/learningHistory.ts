@@ -1,3 +1,4 @@
+import { readFocusStrategy, validFocusStrategy, type FocusStrategy } from './focusBlocks'
 export type SessionHistoryEntry = {
   id: string
   startedAt: string
@@ -9,6 +10,9 @@ export type SessionHistoryEntry = {
   completedSteps: number
   totalSteps: number
   status: 'completed' | 'ended_early'
+  focusStrategy?: FocusStrategy
+  completedFocusBlocks?: number
+  breakSeconds?: number
 }
 
 export type ActiveLearningSession = Omit<SessionHistoryEntry, 'endedAt' | 'status'> & { missionId: string | null }
@@ -36,6 +40,9 @@ function base(value: Record<string, unknown>) {
     focusSeconds: value.focusSeconds as number, plannedSeconds: value.plannedSeconds as number | null,
     timeMode: value.timeMode as SessionHistoryEntry['timeMode'],
     completedSteps: value.completedSteps as number, totalSteps: value.totalSteps as number,
+    ...(validFocusStrategy(value.focusStrategy) ? { focusStrategy: readFocusStrategy(value.focusStrategy) } : {}),
+    ...(Number.isSafeInteger(value.completedFocusBlocks) && (value.completedFocusBlocks as number) >= 0 && (value.completedFocusBlocks as number) <= 10080 ? { completedFocusBlocks: value.completedFocusBlocks as number } : {}),
+    ...(typeof value.breakSeconds === 'number' && Number.isFinite(value.breakSeconds) && value.breakSeconds >= 0 ? { breakSeconds: value.breakSeconds } : {}),
   }
 }
 

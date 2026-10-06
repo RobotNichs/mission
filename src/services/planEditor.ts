@@ -1,9 +1,11 @@
 import type { LearningPlan } from '../types/learningPlan'
 import { validateLearningContext } from '../../shared/learningContext.mjs'
+import { validFocusStrategy } from './focusBlocks'
 
 export const MAX_PLAN_MINUTES = 10080
 
 export function validateEditablePlan(plan: LearningPlan): string | null {
+  if (plan.focusStrategy !== undefined && !validFocusStrategy(plan.focusStrategy)) return 'Fokusblock: 10 bis 120 Minuten. Pause: 1 bis 60 Minuten.'
   if (plan.learningContext !== undefined && !validateLearningContext(plan.learningContext)) return 'Bitte prüfe den optionalen Lernkontext.'
   if (!plan.goal.trim() || plan.goal.length > 280) return 'Bitte gib ein Lernziel mit höchstens 280 Zeichen ein.'
   if (!['automatic', 'manual', 'stopwatch'].includes(plan.timeMode ?? 'manual')) return 'Bitte wähle einen Zeitmodus.'

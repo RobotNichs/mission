@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createLearningPlanId, type LearningPlan, type LearningStep } from '../types/learningPlan'
 import { MAX_PLAN_MINUTES, validateEditablePlan } from '../services/planEditor'
 import LearningContextFields from './LearningContextFields'
+import FocusStrategyFields from './FocusStrategyFields'
 
 type Props = { initial: LearningPlan; onSave: (plan: LearningPlan) => void; onCancel: () => void; disabled: boolean; saveLabel?: string }
 
@@ -31,6 +32,7 @@ export default function PlanEditor({ initial, onSave, onCancel, disabled, saveLa
     </select></label>
     {draft.timeMode === 'manual' && <label>Gesamtdauer in Minuten<input type="number" min={1} max={MAX_PLAN_MINUTES} required value={draft.timeBudgetMinutes} onChange={e => setDraft(p => ({ ...p, timeBudgetMinutes: Number(e.target.value) }))} /></label>}
     <p>Schrittsumme: {sum} Minuten{draft.timeMode === 'stopwatch' ? ' · ohne Zeitlimit' : ''}</p>
+    {draft.timeMode !== 'stopwatch' && <FocusStrategyFields value={draft.focusStrategy} minutes={draft.timeMode === 'automatic' ? sum : draft.timeBudgetMinutes} onChange={focusStrategy => setDraft(p => ({ ...p, focusStrategy }))} />}
     {draft.timeMode === 'manual' && sum !== draft.timeBudgetMinutes && <p role="status">Gesamtdauer und Schrittsumme weichen ab. Deine Zeiten bleiben unverändert.</p>}
     <ol className="editor-step-list">{draft.steps.map((s, i) => {
       const original = initial.steps.find(step => step.id === s.id)

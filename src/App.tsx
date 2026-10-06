@@ -1,5 +1,6 @@
 import { getEquippedOrb } from './services/prestigeOrbs'
 import LearningHistory from './components/LearningHistory'
+import { advanceFocusBlocks, createFocusBlocks, restoreFocusBlocks, intervals, readFocusStrategy, skipFocusBreak, blockSummary, strategyLabel, type FocusBlocks } from './services/focusBlocks'
 import LearningContextFields from './components/LearningContextFields'
 import { readLearningContext, validateLearningContext, type LearningContext } from '../shared/learningContext.mjs'
 import MissionLibrary from './components/MissionLibrary'
@@ -53,7 +54,7 @@ import { isLocalDevelopment } from './services/developmentMode'
 const GamificationDebug = import.meta.env.DEV ? lazy(() => import('./components/GamificationDebug')) : null
 
 type FormSettings = LearningPlanInput
-type SavedAppState = { form: FormSettings; mission: LearningPlan | null; remainingSeconds: number; elapsedSeconds?: number; history?: SessionHistoryEntry[]; activeSession?: ActiveLearningSession | null }
+type SavedAppState = { form: FormSettings; mission: LearningPlan | null; remainingSeconds: number; elapsedSeconds?: number; history?: SessionHistoryEntry[]; activeSession?: ActiveLearningSession | null; focusBlocks?: FocusBlocks | null }
 type PendingClarification = { question: string; input: LearningPlanInput }
 
 const STORAGE_KEY = 'mission.saved-mission.v1'
@@ -159,6 +160,7 @@ function normalizePlan(value: unknown): LearningPlan | null {
     learningBlocker: learningBlocker as LearningBlocker | null,
     steps,
     timeMode: value.timeMode === 'automatic' || value.timeMode === 'stopwatch' ? value.timeMode : 'manual',
+    ...(value.focusStrategy !== undefined ? { focusStrategy: readFocusStrategy(value.focusStrategy) } : {}),
     ...(typeof value.learningBlockerDetails === 'string' && value.learningBlockerDetails.length <= 240 ? { learningBlockerDetails: value.learningBlockerDetails } : {}),
     ...(readLearningContext(value.learningContext) !== undefined ? { learningContext: readLearningContext(value.learningContext) } : {}),
   }
@@ -184,6 +186,7 @@ function readSavedMission(): SavedAppState | null {
       history,
       activeSession: normalizeActiveSession(parsed.activeSession, history),
       mission,
+      focusBlocks: mission?.timeMode === 'stopwatch' ? null : restoreFocusBlocks(parsed.focusBlocks, typeof storedSeconds === 'number' && Number.isFinite(storedSeconds) && storedSeconds >= 0 ? storedSeconds : (mission?.timeBudgetMinutes ?? 25) * 60, mission?.focusStrategy),
       elapsedSeconds: typeof parsed.elapsedSeconds === 'number' && Number.isFinite(parsed.elapsedSeconds) && parsed.elapsedSeconds >= 0 ? parsed.elapsedSeconds : Math.max(0, (mission?.timeBudgetMinutes ?? 25) * 60 - (typeof storedSeconds === 'number' ? storedSeconds : (mission?.timeBudgetMinutes ?? 25) * 60)),
       remainingSeconds: typeof storedSeconds === 'number' && Number.isFinite(storedSeconds) && storedSeconds >= 0
         ? storedSeconds
@@ -255,9 +258,12 @@ function App() {
   const [canWrite, setCanWrite] = useState(false)
   const [storageError, setStorageError] = useState<string | null>(null)
   const writer = useRef(false)
+  const [focusBlocks, setFocusBlocks] = useState<FocusBlocks | null>(saved?.focusBlocks ?? null)
+  const blocksRef = useRef(focusBlocks)
+  function updateBlocks(value: FocusBlocks | null) { blocksRef.current = value; setFocusBlocks(value); appSnapshot.current = { ...appSnapshot.current, focusBlocks: value } }
   const session = useRef<FocusSession | null>(null)
   const game = useRef(gamification)
-  const appSnapshot = useRef<SavedAppState>({ history: saved?.history ?? [], activeSession: saved?.activeSession ?? null, form: { ...(learningContext !== undefined ? { learningContext } : {}), goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds })
+  const appSnapshot = useRef<SavedAppState>({ focusBlocks: saved?.focusBlocks ?? null, history: saved?.history ?? [], activeSession: saved?.activeSession ?? null, form: { ...(learningContext !== undefined ? { learningContext } : {}), goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds })
   const stopRef = useRef<() => void>(() => {})
 
   function commitGamification(next: GamificationState) {
@@ -270,18 +276,24 @@ function App() {
   function settleTimer() {
     if (!writer.current || !session.current) return
     const advanced = advanceFocusSession(session.current, performance.now())
-    commitGamification(addFocusTime(game.current, advanced.elapsedMilliseconds))
+    const block = blocksRef.current
+    const transition = block ? advanceFocusBlocks(block, advanced.elapsedMilliseconds, appSnapshot.current.remainingSeconds, readFocusStrategy(appSnapshot.current.mission?.focusStrategy)) : null
+    const earned = transition?.focusMilliseconds ?? advanced.elapsedMilliseconds
+    if (earned > 0) commitGamification(addFocusTime(game.current, earned))
     session.current = advanced.session
-    const seconds = advanced.session.remainingMilliseconds / 1000
-    const elapsed = (appSnapshot.current.elapsedSeconds ?? 0) + advanced.elapsedMilliseconds / 1000
+    const seconds = transition?.remainingSeconds ?? advanced.session.remainingMilliseconds / 1000
+    const elapsed = (appSnapshot.current.elapsedSeconds ?? 0) + earned / 1000
     setElapsedSeconds(elapsed)
+    if (transition) updateBlocks(transition.blocks)
     const active = appSnapshot.current.activeSession
     appSnapshot.current = { ...appSnapshot.current, remainingSeconds: seconds, elapsedSeconds: elapsed,
-      activeSession: active ? { ...active, focusSeconds: active.focusSeconds + advanced.elapsedMilliseconds / 1000 } : null }
+      activeSession: active ? { ...active, focusSeconds: active.focusSeconds + earned / 1000,
+        ...(appSnapshot.current.mission?.focusStrategy ? { focusStrategy: readFocusStrategy(appSnapshot.current.mission.focusStrategy) } : {}),
+        ...(transition && block ? { completedFocusBlocks: (active.completedFocusBlocks ?? 0) + transition.blocks.completedBlocks - block.completedBlocks, breakSeconds: (active.breakSeconds ?? 0) + (block.phase === 'break' ? advanced.elapsedMilliseconds / 1000 : 0) } : {}) } : null }
     if (!advanced.session.stopwatch && seconds === 0) finalizeSession('completed')
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appSnapshot.current))
     setRemainingSeconds(seconds)
-    if (!advanced.session.stopwatch && seconds === 0) { session.current = null; setIsRunning(false) }
+    if (transition?.boundary || (!advanced.session.stopwatch && seconds === 0)) { session.current = null; setIsRunning(false) }
   }
 
   function finalizeSession(status: SessionHistoryEntry['status']) {
@@ -303,6 +315,7 @@ function App() {
       stopTimer()
       finalizeSession(status)
       setElapsedSeconds(0)
+      updateBlocks(null)
       const duration = mission?.timeMode === 'stopwatch' ? 0 : (mission?.timeBudgetMinutes ?? 25) * 60
       setRemainingSeconds(duration)
       appSnapshot.current = { ...appSnapshot.current, remainingSeconds: duration, elapsedSeconds: 0 }
@@ -343,11 +356,11 @@ function App() {
       appSnapshot.current = { ...appSnapshot.current, activeSession: { ...active,
         completedSteps: activePlan.steps.filter(s => s.done).length, totalSteps: activePlan.steps.length } }
     }
-    const snapshot = { ...appSnapshot.current, form: { ...(learningContext !== undefined ? { learningContext } : {}), goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds }
+    const snapshot = { ...appSnapshot.current, focusBlocks, form: { ...(learningContext !== undefined ? { learningContext } : {}), goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds }
     appSnapshot.current = snapshot
     if (!canWrite || !writer.current) return
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot)) } catch { failStorage() }
-  }, [task, minutes, energy, blocker, blockerDetails, learningContext, mission, remainingSeconds, elapsedSeconds, canWrite])
+  }, [task, minutes, energy, blocker, blockerDetails, learningContext, mission, remainingSeconds, elapsedSeconds, focusBlocks, canWrite])
 
   useEffect(() => {
     const hydrate = () => {
@@ -359,6 +372,7 @@ function App() {
         setBlocker(latest.form.learningBlocker)
         setBlockerDetails(latest.form.learningBlockerDetails ?? '')
         setLearningContext(latest.form.learningContext)
+        updateBlocks(latest.focusBlocks ?? null)
         setElapsedSeconds(latest.elapsedSeconds ?? 0)
         setMission(latest.mission)
         setRemainingSeconds(latest.remainingSeconds)
@@ -438,7 +452,9 @@ function App() {
     if (!writer.current) return
     if (session.current && !window.confirm('Laufende Session pausieren und Lernplan ersetzen? Verdiente Fokuszeit bleibt erhalten.')) return
     stopTimer()
+    updateBlocks(null)
     setElapsedSeconds(0)
+    updateBlocks(null)
     setTemplateOrigin(generation.source === 'groq' ? 'ai' : 'custom')
     const sameMission = mission?.goal.trim() === input.goal.trim()
     const reconciledSteps = preserveStepProgress(
@@ -537,6 +553,11 @@ function App() {
       })
       const next = applyPlanTiming({ ...plan, steps }, elapsed)
       if (plan.id !== mission?.id) setTemplateOrigin('custom')
+      const sameStrategy = JSON.stringify(readFocusStrategy(plan.focusStrategy)) === JSON.stringify(readFocusStrategy(mission?.focusStrategy))
+      const sameDuration = next.remainingSeconds === appSnapshot.current.remainingSeconds
+      updateBlocks(plan.timeMode === 'stopwatch' ? null : sameStrategy && sameDuration && plan.id === mission?.id
+        ? restoreFocusBlocks(blocksRef.current, next.remainingSeconds, plan.focusStrategy)
+        : createFocusBlocks(next.remainingSeconds, plan.focusStrategy, plan.id === mission?.id ? blocksRef.current ?? undefined : undefined))
       setMission(next.plan)
       setRemainingSeconds(next.remainingSeconds)
       setElapsedSeconds(elapsed)
@@ -559,6 +580,7 @@ function App() {
     if (!writer.current) return
     if (session.current) { stopTimer(); return }
     if (!isFocusMode) orbOrigin.current = measureOrb(dashboardOrb.current, gamification.equippedOrbId ?? defaultOrb.id)
+    if (mission?.timeMode !== 'stopwatch' && (!blocksRef.current || remainingSeconds === 0)) updateBlocks(createFocusBlocks(remainingSeconds > 0 ? remainingSeconds : (mission?.timeBudgetMinutes ?? 25) * 60, mission?.focusStrategy))
     const duration = mission?.timeMode === 'stopwatch' ? 0 : remainingSeconds > 0 ? remainingSeconds : (mission?.timeBudgetMinutes ?? 25) * 60
     if (remainingSeconds === 0 && mission?.timeMode !== 'stopwatch') {
       setElapsedSeconds(0)
@@ -576,7 +598,7 @@ function App() {
       setHasActiveSession(true)
     }
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appSnapshot.current)) } catch { failStorage(); return }
-    session.current = { lastTime: performance.now(), remainingMilliseconds: duration * 1000, stopwatch: mission?.timeMode === 'stopwatch' }
+    session.current = { lastTime: performance.now(), remainingMilliseconds: blocksRef.current?.remainingMilliseconds ?? duration * 1000, stopwatch: mission?.timeMode === 'stopwatch' }
     setRemainingSeconds(duration)
     setIsRunning(true)
     setIsFocusMode(true)
@@ -584,11 +606,31 @@ function App() {
 
   function resetTimer() {
     if (!writer.current) return
-    stopTimer()
-    setElapsedSeconds(0)
-    setRemainingSeconds(mission?.timeMode === 'stopwatch' ? 0 : (mission?.timeBudgetMinutes ?? 25) * 60)
+    try {
+      stopTimer()
+      const duration = mission?.timeMode === 'stopwatch' ? 0 : (mission?.timeBudgetMinutes ?? 25) * 60
+      updateBlocks(mission?.timeMode === 'stopwatch' ? null : createFocusBlocks(duration, mission?.focusStrategy))
+      setElapsedSeconds(0)
+      setRemainingSeconds(duration)
+      appSnapshot.current = { ...appSnapshot.current, remainingSeconds: duration, elapsedSeconds: 0 }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appSnapshot.current))
+    } catch { failStorage() }
   }
 
+  function skipBreak() {
+    if (!writer.current || blocksRef.current?.phase !== 'break') return
+    try {
+      stopTimer()
+      if (blocksRef.current?.phase === 'break') updateBlocks(skipFocusBreak(blocksRef.current, appSnapshot.current.remainingSeconds, readFocusStrategy(mission?.focusStrategy)))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appSnapshot.current))
+    } catch { failStorage() }
+  }
+  function blockStatus() {
+    if (!focusBlocks) return ''
+    const blockSeconds = (intervals(mission?.focusStrategy)?.focus ?? 1) / 1000
+    const pending = focusBlocks.phase === 'focus' ? 1 + Math.ceil(Math.max(0, remainingSeconds - focusBlocks.remainingMilliseconds / 1000) / blockSeconds) : Math.ceil(remainingSeconds / blockSeconds)
+    return `${focusBlocks.phase === 'break' ? 'Pause' : focusBlocks.phase === 'finished' ? 'Beendet' : 'Fokus'} · Block ${focusBlocks.block} von ${focusBlocks.completedBlocks + pending}`
+  }
   function leaveFocusMode() {
     try { stopTimer() } catch { failStorage() }
     setIsFocusMode(false)
@@ -600,7 +642,8 @@ function App() {
         orbOrigin={orbOrigin.current}
         environment={focusEnvironment} onEnvironmentChange={changeFocusEnvironment} environmentNotice={environmentNotice}
         level={getLevel(gamification.totalFocusMilliseconds / 60000)}
-        countdown={formatTime(mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)} stopwatch={mission?.timeMode === 'stopwatch'} isRunning={isRunning} finished={mission?.timeMode !== 'stopwatch' && remainingSeconds === 0}
+        countdown={formatTime(focusBlocks ? focusBlocks.remainingMilliseconds / 1000 : mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)} stopwatch={mission?.timeMode === 'stopwatch'} isRunning={isRunning} finished={mission?.timeMode !== 'stopwatch' && remainingSeconds === 0}
+        phase={focusBlocks?.phase} blockLabel={focusBlocks ? blockStatus() : undefined} onSkipBreak={focusBlocks?.phase === 'break' ? skipBreak : undefined}
         enabled={canWrite} error={storageError} onToggleTimer={toggleTimer} onResetTimer={resetTimer}
         onEditPlan={mission ? () => { setEditingPlan(mission); setIsFocusMode(false) } : undefined}
         onEndSession={hasActiveSession ? () => endLearningSession() : undefined}
@@ -853,12 +896,14 @@ function App() {
           <div className="timer-icon">◷</div>
           <div><p className="section-kicker">BLEIB IM FLOW</p><h2>Zeit für deinen Fokus.</h2></div>
         </div>
-        <div className="timer-clock" aria-live="polite" aria-label={`${mission?.timeMode === 'stopwatch' ? 'Vergangene' : 'Verbleibende'} Zeit: ${formatTime(mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)}`}>
-          <span>{formatTime(mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)}</span><small>MIN : SEK</small>
+        {mission?.timeMode !== 'stopwatch' && <p className="field-hint">{mission?.timeBudgetMinutes ?? 25} Min Fokus · {strategyLabel(mission?.focusStrategy)} · {blockSummary(mission?.timeBudgetMinutes ?? 25, mission?.focusStrategy).count} Fokusblöcke · {blockSummary(mission?.timeBudgetMinutes ?? 25, mission?.focusStrategy).pauseMinutes} Min Pause zusätzlich</p>}
+        {focusBlocks && <p role="status">{blockStatus()} · Restliche Fokuszeit: {formatTime(remainingSeconds)}{focusBlocks.phase === 'break' && <button type="button" onClick={skipBreak}>Pause überspringen</button>}</p>}
+        <div className="timer-clock" aria-live="polite" aria-label={`${mission?.timeMode === 'stopwatch' ? 'Vergangene' : 'Verbleibende'} Zeit: ${formatTime(focusBlocks ? focusBlocks.remainingMilliseconds / 1000 : mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)}`}>
+          <span>{formatTime(focusBlocks ? focusBlocks.remainingMilliseconds / 1000 : mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)}</span><small>MIN : SEK</small>
         </div>
         <div className="timer-controls">
           <button ref={normalTimerButton} className="timer-button" type="button" onClick={toggleTimer}>
-            <span>{isRunning ? 'Ⅱ' : '▶'}</span>{isRunning ? 'Pause' : mission?.timeMode === 'stopwatch' ? elapsedSeconds > 0 ? 'Fortsetzen' : 'Start' : remainingSeconds === 0 ? 'Weiter' : 'Start'}
+            <span aria-hidden="true">{isRunning ? 'Ⅱ' : '▶'}</span>{focusBlocks?.phase === 'break' ? isRunning ? 'Pause anhalten' : 'Pause starten' : isRunning ? 'Pause' : mission?.timeMode === 'stopwatch' ? elapsedSeconds > 0 ? 'Fortsetzen' : 'Start' : remainingSeconds === 0 ? 'Weiter' : focusBlocks ? 'Fokusblock starten' : 'Start'}
           </button>
           <button className="reset-button" type="button" onClick={resetTimer} aria-label="Timer zurücksetzen" title="Timer zurücksetzen">↺</button>
         </div>
@@ -897,7 +942,7 @@ function App() {
           const next = { ...appSnapshot.current, mission: plan, remainingSeconds: remaining, elapsedSeconds: 0 }
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); appSnapshot.current = next
-            setMission(plan); setLearningContext(readLearningContext(plan.learningContext)); setRemainingSeconds(remaining); setElapsedSeconds(0); setEditingPlan(null)
+            updateBlocks(null); setMission(plan); setLearningContext(readLearningContext(plan.learningContext)); setRemainingSeconds(remaining); setElapsedSeconds(0); setEditingPlan(null)
             setShowMissionCompletion(false); setGenerationNotice('Vorlage übernommen. Dein Timer bleibt pausiert.'); setTemplateSaveRequest(null); setTemplateOrigin('custom')
           } catch { failStorage() }
         }} />

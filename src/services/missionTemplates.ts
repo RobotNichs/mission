@@ -1,5 +1,6 @@
 import { createLearningPlanId, type LearningPlan, type LearningStepKind } from '../types/learningPlan'
 import { readLearningContext, validateLearningContext, type LearningContext } from '../../shared/learningContext.mjs'
+import { readFocusStrategy, validFocusStrategy, type FocusStrategy } from './focusBlocks'
 
 export const TEMPLATE_STORAGE_KEY = 'mission.templates.v1'
 export const MAX_TEMPLATES = 100
@@ -14,6 +15,7 @@ export type MissionTemplate = {
   language: TemplateLanguage; category: typeof categories[number]; tags: string[]
   createdAt: string; updatedAt: string; origin: TemplateOrigin
   learningContext?: LearningContext
+  focusStrategy?: FocusStrategy
 }
 export type TemplateMetadata = Pick<MissionTemplate, 'title' | 'description' | 'language' | 'category' | 'tags' | 'origin'>
 function fail(): never { throw new Error('Ungültige Vorlage: Bitte prüfe Texte, Zeiten und Metadaten.') }
@@ -38,7 +40,8 @@ export function normalizeTags(tags: string[]): string[] {
 }
 export function validateTemplate(value: unknown): MissionTemplate {
   const t = object(value)
-  keys(t, ['id', 'title', 'description', 'goal', 'steps', 'timeMode', 'plannedMinutes', 'language', 'category', 'tags', 'createdAt', 'updatedAt', 'origin', 'learningContext'])
+  keys(t, ['id', 'title', 'description', 'goal', 'steps', 'timeMode', 'plannedMinutes', 'language', 'category', 'tags', 'createdAt', 'updatedAt', 'origin', 'learningContext', 'focusStrategy'])
+  if (t.focusStrategy !== undefined && !validFocusStrategy(t.focusStrategy)) fail()
   if (t.learningContext !== undefined && !validateLearningContext(t.learningContext)) fail()
   if (typeof t.language !== 'string' || typeof t.origin !== 'string' || typeof t.timeMode !== 'string' || !['de', 'en', 'other'].includes(t.language) || !categories.includes(t.category as typeof categories[number]) || !['custom', 'ai', 'example', 'imported'].includes(t.origin) || !['automatic', 'manual', 'stopwatch'].includes(t.timeMode)) fail()
   if (!Array.isArray(t.steps) || t.steps.length < 1 || t.steps.length > 100 || !Array.isArray(t.tags)) fail()
@@ -57,13 +60,16 @@ export function validateTemplate(value: unknown): MissionTemplate {
   return { id: text(t.id, 100), title: text(t.title, 90), description: text(t.description === undefined ? '' : t.description, 600, true), goal: text(t.goal, 280), steps,
     timeMode: t.timeMode as MissionTemplate['timeMode'], plannedMinutes, language: t.language as TemplateLanguage,
     category: t.category as MissionTemplate['category'], tags: normalizeTags(t.tags as string[]), createdAt, updatedAt, origin: t.origin as TemplateOrigin,
-    ...(t.learningContext !== undefined ? { learningContext: readLearningContext(t.learningContext) } : {}) }
+    ...(t.learningContext !== undefined ? { learningContext: readLearningContext(t.learningContext) } : {}),
+    ...(t.focusStrategy !== undefined ? { focusStrategy: readFocusStrategy(t.focusStrategy) } : {}) }
 }
 export function templateFromPlan(plan: LearningPlan, metadata: TemplateMetadata, previous?: MissionTemplate): MissionTemplate {
   if (plan.learningContext !== undefined && !validateLearningContext(plan.learningContext)) fail()
+  if (plan.focusStrategy !== undefined && !validFocusStrategy(plan.focusStrategy)) fail()
   const now = new Date().toISOString(), timeMode = plan.timeMode ?? 'manual'
   return validateTemplate({ title: metadata.title, description: metadata.description, language: metadata.language, category: metadata.category, tags: metadata.tags, origin: metadata.origin, id: previous?.id ?? createLearningPlanId(), goal: plan.goal,
     ...(plan.learningContext !== undefined ? { learningContext: readLearningContext(plan.learningContext) } : {}),
+    ...(plan.focusStrategy !== undefined ? { focusStrategy: readFocusStrategy(plan.focusStrategy) } : {}),
     steps: plan.steps.map(({ title, description, minutes, kind }) => ({ title, description, minutes, kind })), timeMode,
     plannedMinutes: timeMode === 'stopwatch' ? null : timeMode === 'automatic' ? plan.steps.reduce((n, s) => n + s.minutes, 0) : plan.timeBudgetMinutes,
     createdAt: previous?.createdAt ?? now, updatedAt: now })
@@ -71,7 +77,7 @@ export function templateFromPlan(plan: LearningPlan, metadata: TemplateMetadata,
 export function missionFromTemplate(value: MissionTemplate): LearningPlan {
   const t = validateTemplate(value)
   return { id: createLearningPlanId(), goal: t.goal, timeMode: t.timeMode, timeBudgetMinutes: t.plannedMinutes ?? t.steps.reduce((n, s) => n + s.minutes, 0),
-    energyLevel: 'medium', learningBlocker: null, ...(t.learningContext !== undefined ? { learningContext: readLearningContext(t.learningContext) } : {}), steps: t.steps.map(s => ({ ...s, id: createLearningPlanId(), done: false })) }
+    energyLevel: 'medium', learningBlocker: null, ...(t.learningContext !== undefined ? { learningContext: readLearningContext(t.learningContext) } : {}), ...(t.focusStrategy !== undefined ? { focusStrategy: readFocusStrategy(t.focusStrategy) } : {}), steps: t.steps.map(s => ({ ...s, id: createLearningPlanId(), done: false })) }
 }
 export function loadTemplates(storage: Pick<Storage, 'getItem'> = localStorage): MissionTemplate[] {
   const raw = storage.getItem(TEMPLATE_STORAGE_KEY)

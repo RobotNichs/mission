@@ -1,4 +1,5 @@
 import type { LearningContext } from '../../shared/learningContext.mjs'
+import type { FocusStrategy } from '../services/focusBlocks'
 export type EnergyLevel = 'low' | 'medium' | 'high'
 
 export const learningBlockerOptions = [
@@ -31,9 +32,10 @@ export type LearningPlan = {
   timeMode?: 'automatic' | 'manual' | 'stopwatch'
   learningBlockerDetails?: string
   learningContext?: LearningContext
+  focusStrategy?: FocusStrategy
 }
 
-export type LearningPlanInput = Omit<LearningPlan, 'id' | 'steps' | 'timeMode'>
+export type LearningPlanInput = Omit<LearningPlan, 'id' | 'steps' | 'timeMode' | 'focusStrategy'>
 export type LearningPlanClarification = {
   question: string
   answer: string

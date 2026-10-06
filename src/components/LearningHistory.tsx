@@ -1,4 +1,5 @@
 import type { SessionHistoryEntry } from '../services/learningHistory'
+import { strategyLabel } from '../services/focusBlocks'
 
 export default function LearningHistory({ entries }: { entries: SessionHistoryEntry[] }) {
   return <details className="learning-history"><summary>Deine letzten Missionen</summary>
@@ -8,6 +9,7 @@ export default function LearningHistory({ entries }: { entries: SessionHistoryEn
         <strong>{entry.goal}</strong>
         <span>{Math.floor(entry.focusSeconds / 60)} min {Math.floor(entry.focusSeconds % 60)} s Fokus · {entry.completedSteps} von {entry.totalSteps} erledigt</span>
         <span>{entry.status === 'completed' ? 'Abgeschlossen' : 'Vorzeitig beendet'}</span>
+        {entry.focusStrategy && <span>{strategyLabel(entry.focusStrategy)} · {entry.completedFocusBlocks ?? 0} Fokusblöcke abgeschlossen · {Math.floor((entry.breakSeconds ?? 0) / 60)} min Pause</span>}
       </li>)}</ol>}
   </details>
 }

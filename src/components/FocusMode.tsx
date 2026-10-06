@@ -11,6 +11,9 @@ import UiIcon from './UiIcon'
 import { getOrbSize } from '../services/orbSize'
 
 type Props = {
+  phase?: 'focus' | 'break' | 'finished'
+  blockLabel?: string
+  onSkipBreak?: () => void
   orbOrigin?: OrbOrigin | null
   environment?: FocusEnvironment
   onEnvironmentChange?: (value: FocusEnvironment) => void
@@ -35,7 +38,7 @@ type Props = {
 
 export default function FocusMode({ mission, orb, countdown, stopwatch, level = 1, isRunning, finished, enabled, error,
   onToggleTimer, onResetTimer, onToggleStep, onLeave, onEditPlan, onEndSession, onCompleteSession,
-  environment = 'still', onEnvironmentChange, environmentNotice, orbOrigin }: Props) {
+  environment = 'still', onEnvironmentChange, environmentNotice, orbOrigin, phase, blockLabel, onSkipBreak }: Props) {
   const transition = useFocusTransition(orbOrigin, orb.id)
   const [visible, setVisible] = useState(() => !document.hidden)
   useEffect(() => {
@@ -60,7 +63,7 @@ export default function FocusMode({ mission, orb, countdown, stopwatch, level = 
   const progress = steps.length ? Math.round(completed / steps.length * 100) : 0
 
   return (
-    <main ref={transition.root} className={`focus-mode environment-${environment}`} data-focus-entering={transition.entering} data-background-motion={visible && isRunning ? 'running' : 'paused'} aria-label="Fokusmodus">
+    <main ref={transition.root} className={`focus-mode environment-${environment}`} data-focus-entering={transition.entering} data-background-motion={visible && isRunning && phase !== 'break' ? 'running' : 'paused'} aria-label="Fokusmodus">
       <FocusBackdrop environment={environment} />
       <div className="focus-topline"><span>MISSION · FOKUS</span>
         <button className="focus-leave focus-exit-icon" type="button" onClick={onLeave} aria-label="Fokusmodus verlassen" title="Fokusmodus verlassen"><UiIcon name="close" /></button></div>
@@ -76,9 +79,11 @@ export default function FocusMode({ mission, orb, countdown, stopwatch, level = 
             <strong>{countdown}</strong><span>MIN : SEK</span>
           </div>
         </div>
-        <p className="focus-session-status" role="status">{finished ? 'Fokuszeit abgeschlossen. Gut gemacht.' : isRunning ? 'Du bist im Fokus.' : 'Pausiert. Dein Fortschritt bleibt erhalten.'}</p>
+        {blockLabel && <p className="focus-session-status">{blockLabel}</p>}
+        <p className="focus-session-status" role="status">{phase === 'break' ? 'Geplante Pause. Keine Fokuszeit oder Coins. Der nächste Fokusblock startet erst per Klick.' : finished ? 'Fokuszeit abgeschlossen. Gut gemacht.' : isRunning ? 'Du bist im Fokus.' : 'Pausiert. Dein Fortschritt bleibt erhalten.'}</p>
         <div data-focus-reveal inert={transition.entering} className="focus-controls">
-          <button className="timer-button" type="button" disabled={!enabled} onClick={onToggleTimer}>{isRunning ? 'Pause' : finished ? 'Weiter' : 'Fortsetzen'}</button>
+          <button className="timer-button" type="button" disabled={!enabled} onClick={onToggleTimer}>{phase === 'break' ? isRunning ? 'Pause anhalten' : 'Pause starten' : isRunning ? 'Pause' : finished ? 'Weiter' : phase === 'focus' ? 'Fokusblock starten' : 'Fortsetzen'}</button>
+          {onSkipBreak && <button className="focus-leave" type="button" disabled={!enabled} onClick={onSkipBreak}>Pause überspringen</button>}
           <button className="reset-button" type="button" disabled={!enabled} onClick={onResetTimer} aria-label="Timer zurücksetzen">↺</button>
           {onEndSession && <button className="focus-leave" type="button" disabled={!enabled} onClick={onEndSession}>Session beenden</button>}
           {stopwatch && onCompleteSession && <button className="focus-leave" type="button" disabled={!enabled} onClick={onCompleteSession}>Session abschließen</button>}
