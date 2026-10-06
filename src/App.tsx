@@ -1,5 +1,7 @@
 import { getEquippedOrb } from './services/prestigeOrbs'
 import LearningHistory from './components/LearningHistory'
+import LearningStatistics from './components/LearningStatistics'
+import { STATISTICS_STORAGE_KEY, loadStatistics, prepareFocusBooking, reconcileStatistics, countStatisticsSession, validGoals, type LearningStatistics as Statistics, type StatisticsGoals } from './services/learningStatistics'
 import { advanceFocusBlocks, createFocusBlocks, restoreFocusBlocks, intervals, readFocusStrategy, skipFocusBreak, blockSummary, strategyLabel, type FocusBlocks } from './services/focusBlocks'
 import LearningContextFields from './components/LearningContextFields'
 import { readLearningContext, validateLearningContext, type LearningContext } from '../shared/learningContext.mjs'
@@ -245,6 +247,9 @@ function App() {
   const [mission, setMission] = useState<LearningPlan | null>(saved?.mission ?? null)
   const [remainingSeconds, setRemainingSeconds] = useState(saved?.remainingSeconds ?? 25 * 60)
   const [gamification, setGamification] = useState<GamificationState>(loadGamificationState)
+  const [statistics, setStatistics] = useState(() => loadStatistics(gamification.totalFocusMilliseconds))
+  const statisticsRef = useRef(statistics)
+  const focusWallAnchor = useRef(0)
   const [rewardNotice, setRewardNotice] = useState<string | null>(null)
   const [showMissionCompletion, setShowMissionCompletion] = useState(false)
   const [generationNotice, setGenerationNotice] = useState<string | null>(null)
@@ -279,7 +284,13 @@ function App() {
     const block = blocksRef.current
     const transition = block ? advanceFocusBlocks(block, advanced.elapsedMilliseconds, appSnapshot.current.remainingSeconds, readFocusStrategy(appSnapshot.current.mission?.focusStrategy)) : null
     const earned = transition?.focusMilliseconds ?? advanced.elapsedMilliseconds
-    if (earned > 0) commitGamification(addFocusTime(game.current, earned))
+    if (earned > 0) {
+      const next = addFocusTime(game.current, earned)
+      commitStatistics(prepareFocusBooking(statisticsRef.current, game.current.totalFocusMilliseconds, next.totalFocusMilliseconds, focusWallAnchor.current))
+      commitGamification(next)
+      commitStatistics(reconcileStatistics(statisticsRef.current, next.totalFocusMilliseconds))
+    }
+    focusWallAnchor.current += advanced.elapsedMilliseconds
     session.current = advanced.session
     const seconds = transition?.remainingSeconds ?? advanced.session.remainingMilliseconds / 1000
     const elapsed = (appSnapshot.current.elapsedSeconds ?? 0) + earned / 1000
@@ -304,6 +315,9 @@ function App() {
       completedSteps: currentPlan.steps.filter(s => s.done).length, totalSteps: currentPlan.steps.length } : active
     const endedAt = new Date(Math.max(Date.now(), Date.parse(active.startedAt))).toISOString()
     const next = finishLearningSession(appSnapshot.current.history ?? [], snapshot, status, endedAt)
+    if (next.some(entry => entry.id === active.id) && !(appSnapshot.current.history ?? []).some(entry => entry.id === active.id)) {
+      commitStatistics(countStatisticsSession(statisticsRef.current, active.id, status))
+    }
     appSnapshot.current = { ...appSnapshot.current, history: next, activeSession: null }
     setHistory(next)
     setHasActiveSession(false)
@@ -330,6 +344,17 @@ function App() {
     setIsRunning(false)
   }
   stopRef.current = stopTimer
+
+  function commitStatistics(next: Statistics) {
+    if (!writer.current) return
+    localStorage.setItem(STATISTICS_STORAGE_KEY, JSON.stringify(next))
+    statisticsRef.current = next
+    setStatistics(next)
+  }
+  function changeGoals(goals: StatisticsGoals) {
+    if (!writer.current || !validGoals(goals)) return
+    try { commitStatistics({ ...statisticsRef.current, goals: { ...goals } }) } catch { failStorage() }
+  }
 
   const steps = mission?.steps ?? []
   const completed = steps.filter((step) => step.done).length
@@ -383,6 +408,8 @@ function App() {
       }
       game.current = loadGamificationState(true)
       setGamification(game.current)
+      statisticsRef.current = loadStatistics(game.current.totalFocusMilliseconds, true)
+      setStatistics(statisticsRef.current)
     }
     const sync = () => {
       if (!writer.current) {
@@ -399,6 +426,7 @@ function App() {
         hydrate()
         writer.current = true
         commitGamification(game.current)
+        commitStatistics(statisticsRef.current)
         setCanWrite(true)
       } catch { failStorage() }
     }, failStorage)
@@ -598,6 +626,7 @@ function App() {
       setHasActiveSession(true)
     }
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appSnapshot.current)) } catch { failStorage(); return }
+    focusWallAnchor.current = Date.now()
     session.current = { lastTime: performance.now(), remainingMilliseconds: blocksRef.current?.remainingMilliseconds ?? duration * 1000, stopwatch: mission?.timeMode === 'stopwatch' }
     setRemainingSeconds(duration)
     setIsRunning(true)
@@ -934,6 +963,7 @@ function App() {
 
       </div>
       <LearningHistory entries={history} />
+      <LearningStatistics statistics={statistics} total={gamification.totalFocusMilliseconds} canWrite={canWrite} onGoals={changeGoals} />
       <MissionLibrary saveRequest={templateSaveRequest} suggestedOrigin={templateOrigin} onDismissSave={() => setTemplateSaveRequest(null)}
         enabled={canWrite && !isGenerating && pendingClarification === null && !tourOpen} sessionActive={hasActiveSession}
         onUse={plan => {
