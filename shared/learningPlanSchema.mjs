@@ -1,3 +1,4 @@
+import { readLearningContext, validateLearningContext, unavailableMaterialStep } from './learningContext.mjs'
 const energies = new Set(['low', 'medium', 'high'])
 const blockers = new Set(['starting', 'understanding', 'focus', 'time', 'other'])
 const stepKinds = new Set(['learning', 'practice', 'preparation', 'reflection'])
@@ -96,7 +97,8 @@ function diagnosePlanTopic(steps, context) {
 
 export function validatePlanInput(value) {
   return isRecord(value)
-    && Object.keys(value).every((key) => ['goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'learningBlockerDetails', 'clarification'].includes(key))
+    && Object.keys(value).every((key) => ['goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'learningBlockerDetails', 'clarification', 'learningContext'].includes(key))
+    && (value.learningContext === undefined || validateLearningContext(value.learningContext))
     && (value.learningBlockerDetails === undefined || (value.learningBlocker === 'other' && typeof value.learningBlockerDetails === 'string' && value.learningBlockerDetails.length <= 240))
     && typeof value.goal === 'string'
     && value.goal.trim().length > 0
@@ -154,6 +156,8 @@ export function diagnoseAiPlanDraftDetails(value, input) {
     const topicContext = input.clarification && !input.clarification.skipped ? `${input.goal} ${input.clarification.answer}` : input.goal
     const topicError = diagnosePlanTopic(value.steps, topicContext)
     if (topicError !== null) add('topic_reference_missing', topicError < 0 ? 'steps' : undefined, topicError < 0 ? undefined : topicError)
+    const materialError = unavailableMaterialStep(value.steps, input)
+    if (materialError >= 0) add('material_reference_unavailable', 'description', materialError)
   }
   if (allMinutesValid && totalMinutes !== input.timeBudgetMinutes) add('minutes_total_mismatch', 'minutes')
   if (allKindsValid && !hasLearningActivity) add('learning_activity_missing', 'kind')
@@ -187,7 +191,9 @@ export function validateLearningPlanResponse(value, input) {
   if (input.clarification && value.clarifyingQuestion !== null) return false
 
   const plan = value.plan
-  if (!hasExactKeys(plan, ['id', 'goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'steps'])) return false
+  if (!hasExactKeys(plan, ['id', 'goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'steps', ...(Object.hasOwn(plan, 'learningContext') ? ['learningContext'] : [])])) return false
+  if (plan.learningContext !== undefined && !validateLearningContext(plan.learningContext)) return false
+  if (JSON.stringify(readLearningContext(plan.learningContext)) !== JSON.stringify(readLearningContext(input.learningContext))) return false
   if (typeof plan.id !== 'string' || plan.id.trim().length === 0) return false
   if (
     plan.goal !== input.goal
@@ -212,5 +218,5 @@ export function validateLearningPlanResponse(value, input) {
     totalMinutes += step.minutes
   }
 
-  return totalMinutes === input.timeBudgetMinutes && hasLearningActivity
+  return totalMinutes === input.timeBudgetMinutes && hasLearningActivity && unavailableMaterialStep(plan.steps, input) < 0
 }

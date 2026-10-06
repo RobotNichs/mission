@@ -1,5 +1,7 @@
 import { getEquippedOrb } from './services/prestigeOrbs'
 import LearningHistory from './components/LearningHistory'
+import LearningContextFields from './components/LearningContextFields'
+import { readLearningContext, validateLearningContext, type LearningContext } from '../shared/learningContext.mjs'
 import MissionLibrary from './components/MissionLibrary'
 import SpotlightTour from './components/SpotlightTour'
 import UiIcon from './components/UiIcon'
@@ -93,6 +95,7 @@ function normalizeForm(value: unknown, fallback: LearningPlan | null): FormSetti
     energyLevel: energyLevel as EnergyLevel,
     learningBlocker: learningBlocker as LearningBlocker | null,
     ...(typeof value.learningBlockerDetails === 'string' && value.learningBlockerDetails.length <= 240 ? { learningBlockerDetails: value.learningBlockerDetails } : {}),
+    ...(readLearningContext(value.learningContext) !== undefined ? { learningContext: readLearningContext(value.learningContext) } : {}),
   }
 }
 
@@ -103,6 +106,7 @@ function planToForm(plan: LearningPlan): FormSettings {
     energyLevel: plan.energyLevel,
     learningBlocker: plan.learningBlocker,
     learningBlockerDetails: plan.learningBlockerDetails,
+    learningContext: readLearningContext(plan.learningContext),
   }
 }
 
@@ -156,6 +160,7 @@ function normalizePlan(value: unknown): LearningPlan | null {
     steps,
     timeMode: value.timeMode === 'automatic' || value.timeMode === 'stopwatch' ? value.timeMode : 'manual',
     ...(typeof value.learningBlockerDetails === 'string' && value.learningBlockerDetails.length <= 240 ? { learningBlockerDetails: value.learningBlockerDetails } : {}),
+    ...(readLearningContext(value.learningContext) !== undefined ? { learningContext: readLearningContext(value.learningContext) } : {}),
   }
 }
 
@@ -229,6 +234,7 @@ function App() {
   const [energy, setEnergy] = useState<EnergyLevel>(saved?.form.energyLevel ?? 'medium')
   const [blocker, setBlocker] = useState<LearningBlocker | null>(saved?.form.learningBlocker ?? null)
   const [blockerDetails, setBlockerDetails] = useState(saved?.form.learningBlockerDetails ?? '')
+  const [learningContext, setLearningContext] = useState<LearningContext | undefined>(saved?.form.learningContext)
   const [elapsedSeconds, setElapsedSeconds] = useState(saved?.elapsedSeconds ?? 0)
   const [editingPlan, setEditingPlan] = useState<LearningPlan | null>(null)
   const [templateSaveRequest, setTemplateSaveRequest] = useState<LearningPlan | null>(null)
@@ -251,7 +257,7 @@ function App() {
   const writer = useRef(false)
   const session = useRef<FocusSession | null>(null)
   const game = useRef(gamification)
-  const appSnapshot = useRef<SavedAppState>({ history: saved?.history ?? [], activeSession: saved?.activeSession ?? null, form: { goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds })
+  const appSnapshot = useRef<SavedAppState>({ history: saved?.history ?? [], activeSession: saved?.activeSession ?? null, form: { ...(learningContext !== undefined ? { learningContext } : {}), goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds })
   const stopRef = useRef<() => void>(() => {})
 
   function commitGamification(next: GamificationState) {
@@ -337,11 +343,11 @@ function App() {
       appSnapshot.current = { ...appSnapshot.current, activeSession: { ...active,
         completedSteps: activePlan.steps.filter(s => s.done).length, totalSteps: activePlan.steps.length } }
     }
-    const snapshot = { ...appSnapshot.current, form: { goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds }
+    const snapshot = { ...appSnapshot.current, form: { ...(learningContext !== undefined ? { learningContext } : {}), goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker, ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails } : {}) }, mission, remainingSeconds, elapsedSeconds }
     appSnapshot.current = snapshot
     if (!canWrite || !writer.current) return
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot)) } catch { failStorage() }
-  }, [task, minutes, energy, blocker, blockerDetails, mission, remainingSeconds, elapsedSeconds, canWrite])
+  }, [task, minutes, energy, blocker, blockerDetails, learningContext, mission, remainingSeconds, elapsedSeconds, canWrite])
 
   useEffect(() => {
     const hydrate = () => {
@@ -352,6 +358,7 @@ function App() {
         setEnergy(latest.form.energyLevel)
         setBlocker(latest.form.learningBlocker)
         setBlockerDetails(latest.form.learningBlockerDetails ?? '')
+        setLearningContext(latest.form.learningContext)
         setElapsedSeconds(latest.elapsedSeconds ?? 0)
         setMission(latest.mission)
         setRemainingSeconds(latest.remainingSeconds)
@@ -421,6 +428,7 @@ function App() {
           energyLevel: input.energyLevel,
           learningBlocker: input.learningBlocker,
           learningBlockerDetails: input.learningBlockerDetails,
+          ...(input.learningContext !== undefined ? { learningContext: readLearningContext(input.learningContext) } : {}),
         },
       })
       setClarificationAnswer('')
@@ -456,6 +464,7 @@ function App() {
   async function createMission(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!writer.current || !task.trim() || isGenerating || pendingClarification) return
+    if (learningContext !== undefined && !validateLearningContext(learningContext)) { setGenerationNotice('Bitte prüfe den optionalen Lernkontext.'); return }
     setIsGenerating(true)
     try {
       await generateAndApplyPlan({
@@ -464,6 +473,7 @@ function App() {
         energyLevel: energy,
         learningBlocker: blocker,
         ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails.trim() } : {}),
+        ...(learningContext !== undefined ? { learningContext: readLearningContext(learningContext) } : {}),
       })
     } finally {
       setIsGenerating(false)
@@ -539,8 +549,9 @@ function App() {
 
   function createOwnPlan() {
     if (!writer.current || pendingClarification || isGenerating) return
+    if (learningContext !== undefined && !validateLearningContext(learningContext)) { setGenerationNotice('Bitte prüfe den optionalen Lernkontext.'); return }
     setEditingPlan({ id: createLearningPlanId(), goal: task, timeBudgetMinutes: minutes, energyLevel: energy, learningBlocker: blocker,
-      ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails.trim() } : {}), timeMode: 'automatic',
+      ...(blocker === 'other' ? { learningBlockerDetails: blockerDetails.trim() } : {}), ...(learningContext !== undefined ? { learningContext: readLearningContext(learningContext) } : {}), timeMode: 'automatic',
       steps: [{ id: createLearningPlanId(), title: '', description: '', minutes: 5, kind: 'learning', done: false }] })
   }
 
@@ -728,6 +739,7 @@ function App() {
               <textarea id="blocker-details" maxLength={240} value={blockerDetails} disabled={pendingClarification !== null || isGenerating} onChange={e => setBlockerDetails(e.target.value)} />
               <p className="field-hint">Optional, maximal 240 Zeichen. Ohne Text wird Sonstiges allgemein berücksichtigt.</p></>}
             {!pendingClarification && <button type="button" className="clarification-skip" onClick={createOwnPlan} disabled={isGenerating}>Eigenen Plan erstellen</button>}
+            <LearningContextFields value={learningContext} onChange={setLearningContext} disabled={pendingClarification !== null || isGenerating} />
             {!pendingClarification && (
               <button className="primary-button" type="submit" disabled={!task.trim() || isGenerating}>
                 <span>{isGenerating ? 'Plan wird erstellt …' : hasMission ? 'Mission aktualisieren' : 'Mission planen'}</span>
@@ -885,7 +897,7 @@ function App() {
           const next = { ...appSnapshot.current, mission: plan, remainingSeconds: remaining, elapsedSeconds: 0 }
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); appSnapshot.current = next
-            setMission(plan); setRemainingSeconds(remaining); setElapsedSeconds(0); setEditingPlan(null)
+            setMission(plan); setLearningContext(readLearningContext(plan.learningContext)); setRemainingSeconds(remaining); setElapsedSeconds(0); setEditingPlan(null)
             setShowMissionCompletion(false); setGenerationNotice('Vorlage übernommen. Dein Timer bleibt pausiert.'); setTemplateSaveRequest(null); setTemplateOrigin('custom')
           } catch { failStorage() }
         }} />

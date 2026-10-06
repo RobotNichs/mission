@@ -1,3 +1,4 @@
+import type { LearningContext } from '../../shared/learningContext.mjs'
 export type EnergyLevel = 'low' | 'medium' | 'high'
 
 export const learningBlockerOptions = [
@@ -29,6 +30,7 @@ export type LearningPlan = {
   steps: LearningStep[]
   timeMode?: 'automatic' | 'manual' | 'stopwatch'
   learningBlockerDetails?: string
+  learningContext?: LearningContext
 }
 
 export type LearningPlanInput = Omit<LearningPlan, 'id' | 'steps' | 'timeMode'>

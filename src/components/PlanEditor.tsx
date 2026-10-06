@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createLearningPlanId, type LearningPlan, type LearningStep } from '../types/learningPlan'
 import { MAX_PLAN_MINUTES, validateEditablePlan } from '../services/planEditor'
+import LearningContextFields from './LearningContextFields'
 
 type Props = { initial: LearningPlan; onSave: (plan: LearningPlan) => void; onCancel: () => void; disabled: boolean; saveLabel?: string }
 
@@ -24,6 +25,7 @@ export default function PlanEditor({ initial, onSave, onCancel, disabled, saveLa
   }}><fieldset disabled={disabled}>
     <legend>Dein Plan, deine Entscheidungen</legend>
     <label>Lernziel<input value={draft.goal} maxLength={280} required onChange={e => setDraft(p => ({ ...p, goal: e.target.value }))} /></label>
+    <LearningContextFields value={draft.learningContext} onChange={learningContext => setDraft(p => ({ ...p, learningContext }))} />
     <label>Zeitmodus<select value={draft.timeMode} onChange={e => setDraft(p => ({ ...p, timeMode: e.target.value as LearningPlan['timeMode'] }))}>
       <option value="automatic">Automatisch</option><option value="manual">Manuell</option><option value="stopwatch">Stoppuhr</option>
     </select></label>

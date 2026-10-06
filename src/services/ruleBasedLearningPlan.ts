@@ -1,4 +1,5 @@
 import { createLearningPlanId, type LearningPlan, type LearningPlanRequest, type LearningStepKind } from '../types/learningPlan'
+import { hasNoMaterials, personalizeContextAction, readLearningContext } from '../../shared/learningContext.mjs'
 
 // Integer allocation, retaining at least one minute per action and the exact budget.
 export function allocateFallbackMinutes(budget: number, weights: number[]): number[] {
@@ -14,9 +15,10 @@ export function allocateFallbackMinutes(budget: number, weights: number[]): numb
 
 export function generateRuleBasedLearningPlan(input: LearningPlanRequest): LearningPlan {
   const id = createLearningPlanId()
+  const none = hasNoMaterials(input)
   const topic = input.goal.trim().replace(/[.!?]+$/, '')
   const shortTopic = topic.length > 44 ? `${topic.slice(0, 41)}…` : topic
-  const focus = input.clarification && !input.clarification.skipped ? ` Schwerpunkt: „${input.clarification.answer.trim()}“.` : ''
+  const focus = input.clarification && !input.clarification.skipped && !/material|unterlagen/i.test(input.clarification.question) ? ` Schwerpunkt: „${input.clarification.answer.trim()}“.` : ''
   const energy = input.energyLevel === 'low' ? 'Bleibe bei einem kleinen Abschnitt und nur einem vorhandenen Beispiel.'
     : input.energyLevel === 'high' ? 'Versuche den nächsten Lösungs- oder Arbeitsschritt zuerst selbst, bevor du nachliest.'
     : 'Bearbeite einen begrenzten Abschnitt in deinem Tempo.'
@@ -27,13 +29,14 @@ export function generateRuleBasedLearningPlan(input: LearningPlanRequest): Learn
     : input.learningBlockerDetails ? `Deine Lernhürde: „${input.learningBlockerDetails.trim()}“. Wähle einen kleinen Einstieg.`
     : 'Lege nur die Unterlagen bereit, die du bereits hast.'
   const context = ` Für „${topic}“.${focus}`
+  const noneHint = `${input.learningBlocker === 'understanding' ? 'Notiere eine konkrete Frage zum ersten unklaren Teil.' : input.learningBlocker === 'time' ? 'Wähle nur die wichtigste Frage und lasse weitere Themen weg.' : 'Beginne mit genau einer kleinen Frage.'} ${input.learningBlocker === 'focus' ? 'Schließe ablenkende Tabs.' : ''} ${input.learningBlocker === 'other' && input.learningBlockerDetails ? `Deine Lernhürde: „${input.learningBlockerDetails.trim()}“.` : ''} ${input.energyLevel === 'high' ? 'Versuche den nächsten eigenen Schritt zuerst selbst.' : input.energyLevel === 'low' ? 'Ein kleiner eigener Versuch genügt.' : 'Bearbeite nur einen Teil in deinem Tempo.'}`
   type Idea = { title: string; description: string; kind: LearningStepKind }
   const ideas: Idea[] = input.timeBudgetMinutes <= 10 ? [{
     title: `Erster Schritt: ${shortTopic}`, kind: 'practice',
-    description: `Öffne deine vorhandenen Unterlagen und versuche nur den ersten Schritt eines passenden Beispiels. ${input.energyLevel === 'low' ? 'Eine kleine Stelle genügt.' : 'Prüfe diesen einen Schritt anhand der vorhandenen Lösung.'}`,
+    description: `Öffne deine vorhandenen Unterlagen und versuche nur den ersten Schritt eines passenden Beispiels. ${input.energyLevel === 'low' ? 'Eine kleine Stelle genügt.' : 'Prüfe diesen einen Schritt anhand der Lösung, falls eine vorhanden ist.'}`,
   }] : input.timeBudgetMinutes <= 20 ? [
     { title: `Stelle finden: ${shortTopic}`, description: 'Öffne deine vorhandenen Unterlagen und markiere genau ein passendes Beispiel.', kind: 'preparation' },
-    { title: `Beispiel bearbeiten: ${shortTopic}`, description: input.learningBlocker === 'understanding' ? 'Vollziehe den ersten Arbeitsschritt des vorhandenen Beispiels nach und vergleiche ihn mit der Lösung.' : 'Versuche einen Arbeitsschritt des vorhandenen Beispiels selbst und prüfe ihn anschließend anhand deiner Unterlagen.', kind: 'practice' },
+    { title: `Beispiel bearbeiten: ${shortTopic}`, description: input.learningBlocker === 'understanding' ? 'Vollziehe den ersten Arbeitsschritt des vorhandenen Beispiels nach und vergleiche ihn mit deinen vorhandenen Unterlagen.' : 'Versuche einen Arbeitsschritt des vorhandenen Beispiels selbst und prüfe ihn anschließend anhand deiner Unterlagen.', kind: 'practice' },
     { title: `Frage festhalten: ${shortTopic}`, description: 'Notiere eine offene Frage und die erste Handlung für deinen nächsten Lernblock.', kind: 'reflection' },
   ] : [
     { title: `Unterlagen öffnen: ${shortTopic}`, description: 'Öffne deine vorhandenen Unterlagen und suche den passenden Abschnitt. Wähle ein vorhandenes Beispiel.', kind: 'preparation' },
@@ -55,6 +58,7 @@ export function generateRuleBasedLearningPlan(input: LearningPlanRequest): Learn
   const minutes = allocateFallbackMinutes(input.timeBudgetMinutes, weights)
   return { id, goal: input.goal, timeBudgetMinutes: input.timeBudgetMinutes, energyLevel: input.energyLevel, learningBlocker: input.learningBlocker,
     ...(input.learningBlockerDetails !== undefined ? { learningBlockerDetails: input.learningBlockerDetails } : {}),
-    steps: ideas.map((idea, index) => ({ id: `${id}-step-${index + 1}`, title: idea.title, kind: idea.kind, done: false, minutes: minutes[index],
-      description: `${idea.description}${context}${index === 0 ? ` ${obstacle} ${energy}` : ''}`.slice(0, 600) })) }
+    ...(input.learningContext !== undefined ? { learningContext: readLearningContext(input.learningContext) } : {}),
+    steps: ideas.map((idea, index) => ({ id: `${id}-step-${index + 1}`, title: none ? `${index === 0 ? 'Eine Frage wählen' : idea.kind === 'reflection' ? 'Nächsten Schritt sichern' : 'Eigenen Ansatz versuchen'}: ${shortTopic}` : idea.title, kind: idea.kind, done: false, minutes: minutes[index],
+      description: `${personalizeContextAction(idea.description, input, index, idea.kind, index === ideas.length - 1)}${context}${index === 0 ? ` ${none ? noneHint : `${obstacle} ${energy}`}` : ''}`.slice(0, 600) })) }
 }

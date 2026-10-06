@@ -1,8 +1,10 @@
 import type { LearningPlan } from '../types/learningPlan'
+import { validateLearningContext } from '../../shared/learningContext.mjs'
 
 export const MAX_PLAN_MINUTES = 10080
 
 export function validateEditablePlan(plan: LearningPlan): string | null {
+  if (plan.learningContext !== undefined && !validateLearningContext(plan.learningContext)) return 'Bitte prüfe den optionalen Lernkontext.'
   if (!plan.goal.trim() || plan.goal.length > 280) return 'Bitte gib ein Lernziel mit höchstens 280 Zeichen ein.'
   if (!['automatic', 'manual', 'stopwatch'].includes(plan.timeMode ?? 'manual')) return 'Bitte wähle einen Zeitmodus.'
   if (!plan.steps.length || plan.steps.length > 100) return 'Ein Plan braucht 1 bis 100 Schritte.'
