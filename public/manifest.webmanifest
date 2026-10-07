@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "Mission",
+  "short_name": "Mission",
+  "description": "Dein Fokus- und Lernorganisationscoach: kleine Schritte, eigene Lernpläne und lokaler Fortschritt.",
+  "lang": "de",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#080e18",
+  "theme_color": "#080e18",
+  "icons": [
+    { "src": "/icons/mission-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/mission-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/mission-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

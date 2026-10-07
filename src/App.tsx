@@ -2,6 +2,7 @@ import { getEquippedOrb } from './services/prestigeOrbs'
 import LearningHistory from './components/LearningHistory'
 import MobileNavigation, { mobileAreaLabels, type MobileArea } from './components/MobileNavigation'
 import useMobileLayout from './services/useMobileLayout'
+import PwaStatus, { usePwaStatus } from './components/PwaStatus'
 import LearningStatistics from './components/LearningStatistics'
 import { STATISTICS_STORAGE_KEY, loadStatistics, prepareFocusBooking, reconcileStatistics, countStatisticsSession, validGoals, type LearningStatistics as Statistics, type StatisticsGoals } from './services/learningStatistics'
 import { advanceFocusBlocks, createFocusBlocks, restoreFocusBlocks, intervals, readFocusStrategy, skipFocusBreak, blockSummary, strategyLabel, type FocusBlocks } from './services/focusBlocks'
@@ -209,6 +210,7 @@ function formatTime(totalSeconds: number) {
 }
 
 function App() {
+  const pwaStatus = usePwaStatus()
   const isMobile = useMobileLayout()
   const [mobileArea, setMobileArea] = useState<MobileArea>('home')
   const mobileHeading = useRef<HTMLHeadingElement>(null)
@@ -691,6 +693,7 @@ function App() {
   if (isFocusMode) return (
     <>
       <FocusMode mission={mission} orb={getEquippedOrb(gamification)}
+        pwaStatus={<PwaStatus status={pwaStatus} />}
         orbOrigin={orbOrigin.current}
         environment={focusEnvironment} onEnvironmentChange={changeFocusEnvironment} environmentNotice={environmentNotice}
         level={effectiveDisplayLevel}
@@ -728,6 +731,7 @@ function App() {
           <span className="avatar" aria-label="Dein Lernbereich">L</span>
         </div>
       </header>
+      <PwaStatus status={pwaStatus} />
       {isMobile && <h1 ref={mobileHeading} tabIndex={-1} className="mobile-area-heading">{mobileAreaLabels[mobileArea]}</h1>}
       {isMobile && <section hidden={hideMobile('home')} className="mobile-mission-summary" aria-label="Heutige Mission">
         <p className="section-kicker">DEINE MISSION HEUTE</p><h2>{mission?.goal ?? 'Bereit für deine nächste Mission?'}</h2>

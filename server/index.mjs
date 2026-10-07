@@ -15,6 +15,8 @@ const contentTypes = {
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
 }
 
 function sendJson(response, status, body) {
@@ -135,7 +137,8 @@ async function serveStatic(request, response) {
     if (!fileInfo.isFile()) throw new Error('not_a_file')
     const content = await readFile(filePath)
     response.writeHead(200, {
-      'cache-control': extname(filePath) === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+      'cache-control': extname(filePath) === '.html' || filePath === resolve(distributionRoot, 'sw.js') || extname(filePath) === '.webmanifest' || filePath.startsWith(`${resolve(distributionRoot, 'icons')}${sep}`)
+        ? 'no-cache' : 'public, max-age=31536000, immutable',
       'content-type': contentTypes[extname(filePath)] ?? 'application/octet-stream',
       'x-content-type-options': 'nosniff',
     })

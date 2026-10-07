@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import FocusEnvironmentPicker from './FocusEnvironmentPicker'
 import FocusBackdrop from './FocusBackdrop'
 import useFocusTransition from './useFocusTransition'
@@ -11,6 +11,7 @@ import UiIcon from './UiIcon'
 import { getOrbSize } from '../services/orbSize'
 
 type Props = {
+  pwaStatus?: ReactNode
   phase?: 'focus' | 'break' | 'finished'
   blockLabel?: string
   onSkipBreak?: () => void
@@ -38,7 +39,7 @@ type Props = {
 
 export default function FocusMode({ mission, orb, countdown, stopwatch, level = 1, isRunning, finished, enabled, error,
   onToggleTimer, onResetTimer, onToggleStep, onLeave, onEditPlan, onEndSession, onCompleteSession,
-  environment = 'still', onEnvironmentChange, environmentNotice, orbOrigin, phase, blockLabel, onSkipBreak }: Props) {
+  environment = 'still', onEnvironmentChange, environmentNotice, orbOrigin, phase, blockLabel, onSkipBreak, pwaStatus }: Props) {
   const transition = useFocusTransition(orbOrigin, orb.id)
   const [visible, setVisible] = useState(() => !document.hidden)
   useEffect(() => {
@@ -67,6 +68,7 @@ export default function FocusMode({ mission, orb, countdown, stopwatch, level = 
       <FocusBackdrop environment={environment} />
       <div className="focus-topline"><span>MISSION · FOKUS</span>
         <button className="focus-leave focus-exit-icon" type="button" onClick={onLeave} aria-label="Fokusmodus verlassen" title="Fokusmodus verlassen"><UiIcon name="close" /></button></div>
+      {pwaStatus}
       {onEnvironmentChange && <FocusEnvironmentPicker value={environment} onChange={onEnvironmentChange} />}
       {environmentNotice && <p className="environment-notice">{environmentNotice}</p>}
       {onEditPlan && <button className="focus-leave" type="button" disabled={!enabled} onClick={onEditPlan}>Lernplan bearbeiten</button>}
