@@ -22,11 +22,12 @@ const failureMessages: Record<string, string> = {
   provider_not_configured: 'Der KI-Anbieter ist noch nicht vollständig konfiguriert.',
   provider_not_supported: 'Der konfigurierte KI-Anbieter wird nicht unterstützt.',
   rate_limited: 'Zu viele Lernplananfragen. Bitte warte kurz.',
+  offline: 'Du bist offline. Die KI ist ohne Netzwerk nicht erreichbar.',
   invalid_request: 'Die Lernplananfrage konnte nicht verarbeitet werden.',
 }
 
 class ApiFailure extends Error {
-  constructor(readonly category: string, readonly diagnosisId: string) { super(category) }
+  constructor(readonly category: string, readonly diagnosisId: string, readonly retrySeconds?: number) { super(category) }
 }
 
 function readFailure(payload: unknown, localId: string): ApiFailure {
@@ -65,13 +66,21 @@ export async function generateLearningPlanWithStatus(
           signal: controller.signal,
         })
       } catch {
-        throw new ApiFailure(controller.signal.aborted ? 'provider_timeout' : 'provider_unreachable', localId)
+        throw new ApiFailure(controller.signal.aborted ? 'provider_timeout' : navigator.onLine === false ? 'offline' : 'provider_unreachable', localId)
       }
       let payload: unknown
       try { payload = await response.json() } catch {
         throw new ApiFailure(controller.signal.aborted ? 'provider_timeout' : 'invalid_json', localId)
       }
-      if (!response.ok) throw readFailure(payload, localId)
+      if (!response.ok) {
+        const failure = readFailure(payload, localId)
+        if (response.status === 429) {
+          const value = response.headers.get('retry-after')
+          const seconds = value && /^\d+$/.test(value) ? Number(value) : value ? Math.ceil((Date.parse(value) - Date.now()) / 1000) : NaN
+          throw new ApiFailure('rate_limited', failure.diagnosisId, Number.isFinite(seconds) && seconds > 0 && seconds <= 86400 ? seconds : undefined)
+        }
+        throw failure
+      }
       if (!validateLearningPlanResponse(payload, input)) throw new ApiFailure('invalid_plan_schema', localId)
       const source = payload.source
       const baseNotice = source === 'mock'
@@ -89,7 +98,7 @@ export async function generateLearningPlanWithStatus(
     const failure = error instanceof ApiFailure ? error : new ApiFailure('internal_error', localId)
     return {
       plan: generateRuleBasedLearningPlan(input), source: 'fallback', clarifyingQuestion: null,
-      notice: failureMessages[failure.category] + ' Ein lokaler Ersatzplan wurde erstellt. Diagnose-ID: ' + failure.diagnosisId,
+      notice: failureMessages[failure.category] + (failure.retrySeconds ? ` Versuch es in etwa ${failure.retrySeconds} Sekunden erneut.` : '') + ' Ein lokaler Ersatzplan wurde erstellt. Diagnose-ID: ' + failure.diagnosisId,
     }
   } finally {
     clearTimeout(timeout)

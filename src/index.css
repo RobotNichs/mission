@@ -971,3 +971,7 @@ button:disabled { cursor: not-allowed; }
   .focus-mode { padding-top: calc(24px + env(safe-area-inset-top, 0px)); padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px)); }
   .shop-modal-backdrop, .reward-modal-backdrop { padding-top: calc(20px + env(safe-area-inset-top, 0px)); padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 }
+/* Compact beta information uses the existing scrollable dialog. */
+.beta-info { display: grid; gap: 12px; overflow-wrap: anywhere; }
+.beta-info h3, .beta-info p { margin: 0; }
+.beta-info input[type="file"] { max-width: 100%; min-width: 0; }

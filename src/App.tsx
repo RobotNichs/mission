@@ -1,5 +1,6 @@
 import { getEquippedOrb } from './services/prestigeOrbs'
 import LearningHistory from './components/LearningHistory'
+import BetaInfo from './components/BetaInfo'
 import MobileNavigation, { mobileAreaLabels, type MobileArea } from './components/MobileNavigation'
 import useMobileLayout from './services/useMobileLayout'
 import PwaStatus, { usePwaStatus } from './components/PwaStatus'
@@ -218,6 +219,7 @@ function App() {
   const navigationFocus = useRef<HTMLButtonElement>(null)
   const [tourOffer, setTourOffer] = useState(shouldOfferTour)
   const [tourOpen, setTourOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
   const setupTarget = useRef<HTMLElement>(null)
   const planTarget = useRef<HTMLElement>(null)
   const timerTarget = useRef<HTMLElement>(null)
@@ -725,6 +727,8 @@ function App() {
           <span className="brand-name">mission</span>
         </a>
         <div className="topbar-right">
+          <button className="focus-leave" type="button" aria-label="Info, Datenschutz und Daten" onClick={() => setInfoOpen(true)}>Info</button>
+          {infoOpen && <BetaInfo enabled={canWrite && !isRunning && !isGenerating && !pendingClarification} onClose={() => setInfoOpen(false)} />}
           <button ref={tourHelp} className="focus-leave tour-help" type="button" aria-label="Mission-Tour starten" title="Mission kennenlernen"
             disabled={isRunning} onClick={() => { setTourOffer(false); setTourOpen(true) }}><UiIcon name="help" /></button>
           <span className="local-badge"><span className="status-dot" /> Alles lokal gespeichert</span>

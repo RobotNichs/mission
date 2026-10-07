@@ -3,6 +3,17 @@ import { generateLearningPlanWithStatus } from './learningPlanApi'
 import type { LearningPlanApiResponse } from '../../shared/learningPlanSchema.mjs'
 import type { LearningPlanInput, LearningPlanRequest } from '../types/learningPlan'
 
+it('explains rate limits with Retry-After and does not retry the provider', async () => {
+  const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { category: 'rate_limited', diagnosisId: crypto.randomUUID() } }), { status: 429, headers: { 'retry-after': '42' } }))
+  const result = await generateLearningPlanWithStatus(input, fetchImpl)
+  expect(result.source).toBe('fallback'); expect(result.notice).toContain('42 Sekunden'); expect(result.notice).toContain('Diagnose-ID:'); expect(fetchImpl).toHaveBeenCalledOnce()
+})
+it('explains offline failure while returning a local plan without retries', async () => {
+  vi.stubGlobal('navigator', { onLine: false })
+  const fetchImpl = vi.fn().mockRejectedValue(new TypeError('private network detail'))
+  try { const result = await generateLearningPlanWithStatus(input, fetchImpl); expect(result.source).toBe('fallback'); expect(result.notice).toContain('offline'); expect(result.notice).not.toContain('private network detail'); expect(fetchImpl).toHaveBeenCalledOnce() } finally { vi.unstubAllGlobals() }
+})
+
 const input: LearningPlanInput = {
   goal: 'Java-Klassen und Methoden üben',
   timeBudgetMinutes: 5,
