@@ -975,3 +975,23 @@ button:disabled { cursor: not-allowed; }
 .beta-info { display: grid; gap: 12px; overflow-wrap: anywhere; }
 .beta-info h3, .beta-info p { margin: 0; }
 .beta-info input[type="file"] { max-width: 100%; min-width: 0; }
+
+/* Local long-term projects share the existing mission-control surface. */
+.projects-panel { margin: 1.5rem 0; padding: clamp(1rem, 3vw, 2rem); border: 1px solid rgba(151, 174, 235, .22); border-radius: 24px; background: rgba(15, 23, 46, .7); min-width: 0; }
+.projects-panel p, .projects-panel li, .projects-panel dd { overflow-wrap: anywhere; }
+.project-form fieldset { min-width: 0; margin: 1rem 0; border: 1px solid rgba(151,174,235,.22); border-radius: 12px; padding: 1rem; }
+.project-form label { display: grid; gap: .45rem; margin: .9rem 0; }
+.project-form input, .project-form select, .project-form textarea { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; padding: .7rem; border: 1px solid rgba(151,174,235,.4); border-radius: 8px; background: #111b30; color: inherit; font: inherit; }
+.project-form textarea { min-height: 5rem; resize: vertical; }
+.project-form .context-materials label { display: flex; align-items: center; }
+.project-form input[type=checkbox] { width: auto; }
+.project-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .8rem; }
+.project-actions button { max-width: 100%; padding: .6rem .9rem; border-radius: 9px; border: 1px solid rgba(151,174,235,.4); background: #1c2944; color: inherit; font: inherit; cursor: pointer; }
+.project-actions button:disabled { opacity: .45; cursor: default; }
+.project-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .6rem; }
+.project-detail dl { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,2fr); gap: .6rem; }
+.project-detail dd { margin: 0; }
+.project-phases { padding-left: 1.3rem; }
+.project-phases > li { margin: 1.2rem 0; }
+.project-notes { white-space: pre-wrap; }
+@media (max-width: 600px) { .project-detail dl { grid-template-columns: 1fr; } .project-detail dd { margin-bottom: .5rem; } .project-actions button { flex: 1 1 130px; } }

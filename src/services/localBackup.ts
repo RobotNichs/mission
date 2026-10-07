@@ -1,3 +1,4 @@
+import { PROJECT_STORAGE_KEY, readProjectStore } from '../../shared/longTermProjectSchema.mjs'
 import { initialGamificationState } from '../types/gamification'
 import { loadTemplates } from './missionTemplates'
 import { normalizeHistory, normalizeActiveSession } from './learningHistory'
@@ -10,7 +11,7 @@ import { cosmeticShopItems } from './gamification'
 import { canEquipOrb } from './prestigeOrbs'
 import type { GamificationState } from '../types/gamification'
 
-export const BACKUP_KEYS = ['mission.saved-mission.v1', 'mission.gamification.v1', 'mission.statistics.v1', 'mission.templates.v1', 'mission.focus-environment.v1', 'mission.onboarding.v1'] as const
+export const BACKUP_KEYS = ['mission.saved-mission.v1', 'mission.gamification.v1', 'mission.statistics.v1', 'mission.templates.v1', 'mission.focus-environment.v1', 'mission.onboarding.v1', 'mission.projects.v1'] as const
 export const MAX_BACKUP_BYTES = 2 * 1024 * 1024
 type Data = Partial<Record<typeof BACKUP_KEYS[number], unknown>>
 export type Backup = { format: 'mission-backup'; version: 1; exportedAt: string; data: Data }
@@ -78,6 +79,7 @@ function validateData(data: unknown): Data {
       if (r.pending !== undefined) { const b = fields(r.pending, ['from', 'to', 'start']); for (const k of ['from', 'to', 'start']) integer(b[k]); if ((b.to as number) <= (b.from as number) || (b.to as number) - (b.from as number) > 10080 * 60000 || !Number.isFinite(new Date(b.start as number).getTime())) fail() }
     } else if (key === BACKUP_KEYS[3]) loadTemplates({ getItem: () => JSON.stringify(value) })
     else if (key === BACKUP_KEYS[4]) choice(value, ['still', 'deep-space', 'nebula', 'liquid'])
+    else if (key === PROJECT_STORAGE_KEY) readProjectStore(value)
     else { const r = fields(value, ['version', 'status']); if (r.version !== 1) fail(); choice(r.status, ['offered', 'dismissed', 'completed', 'skipped']) }
   }
   // Progress and statistics must describe the same measurement journal.

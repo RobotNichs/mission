@@ -74,7 +74,28 @@ function createMockDraft(input) {
   return { clarifyingQuestion, steps }
 }
 
-async function requestGroqDraft(input, env, fetchImpl, signal) {
+// Roadmap responses have an additional byte cap before parsing provider JSON.
+async function readBoundedProviderJson(response, maxBytes) {
+  if (!maxBytes || !response.body?.getReader) return response.json()
+  if (Number(response.headers?.get('content-length')) > maxBytes) throw new ProviderFailure('model_output_truncated')
+  const reader = response.body.getReader(), chunks = []
+  let size = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > maxBytes) { await reader.cancel(); throw new ProviderFailure('model_output_truncated') }
+      chunks.push(value)
+    }
+    const bytes = new Uint8Array(size)
+    let offset = 0
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+    return JSON.parse(new TextDecoder().decode(bytes))
+  } finally { reader.releaseLock() }
+}
+
+export async function requestGroqDraft(input, env, fetchImpl, signal, configuration) {
   if (signal?.aborted) throw new ProviderFailure('client_disconnected')
   const controller = new AbortController()
   let rejectDisconnect
@@ -100,13 +121,13 @@ async function requestGroqDraft(input, env, fetchImpl, signal) {
       body: JSON.stringify({
         model: env.GROQ_MODEL,
         temperature: 0.2,
-        max_tokens: 2048,
+        max_tokens: configuration?.maxTokens ?? 2048,
         response_format: { type: 'json_object' },
         messages: [
-          { role: 'system', content: systemPrompt },
+          { role: 'system', content: configuration?.systemPrompt ?? systemPrompt },
           {
             role: 'user',
-            content: JSON.stringify({
+            content: JSON.stringify(configuration?.input ?? {
               goal: input.goal,
               timeBudgetMinutes: input.timeBudgetMinutes,
               energyLevel: input.energyLevel,
@@ -123,7 +144,7 @@ async function requestGroqDraft(input, env, fetchImpl, signal) {
       throw new ProviderFailure('provider_unreachable')
     }))
     if (!response.ok) throw new ProviderFailure('provider_http_error', Number.isInteger(response.status) && response.status >= 100 && response.status <= 599 ? response.status : undefined)
-    const body = await withinDeadline(response.json().catch((error) => {
+    const body = await withinDeadline(readBoundedProviderJson(response, configuration?.maxResponseBytes).catch((error) => {
       if (controller.signal.aborted) throw new ProviderFailure('provider_timeout')
       if (error instanceof SyntaxError) throw new ProviderFailure('invalid_json')
       if (error instanceof TypeError) throw new ProviderFailure('provider_unreachable')

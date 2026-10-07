@@ -1,3 +1,4 @@
+import LongTermProjects from './components/LongTermProjects'
 import { getEquippedOrb } from './services/prestigeOrbs'
 import LearningHistory from './components/LearningHistory'
 import BetaInfo from './components/BetaInfo'
@@ -220,6 +221,7 @@ function App() {
   const [tourOffer, setTourOffer] = useState(shouldOfferTour)
   const [tourOpen, setTourOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [projectBusy, setProjectBusy] = useState(false)
   const setupTarget = useRef<HTMLElement>(null)
   const planTarget = useRef<HTMLElement>(null)
   const timerTarget = useRef<HTMLElement>(null)
@@ -728,7 +730,7 @@ function App() {
         </a>
         <div className="topbar-right">
           <button className="focus-leave" type="button" aria-label="Info, Datenschutz und Daten" onClick={() => setInfoOpen(true)}>Info</button>
-          {infoOpen && <BetaInfo enabled={canWrite && !isRunning && !isGenerating && !pendingClarification} onClose={() => setInfoOpen(false)} />}
+          {infoOpen && <BetaInfo enabled={canWrite && !isRunning && !isGenerating && !pendingClarification && !projectBusy} onClose={() => setInfoOpen(false)} />}
           <button ref={tourHelp} className="focus-leave tour-help" type="button" aria-label="Mission-Tour starten" title="Mission kennenlernen"
             disabled={isRunning} onClick={() => { setTourOffer(false); setTourOpen(true) }}><UiIcon name="help" /></button>
           <span className="local-badge"><span className="status-dot" /> Alles lokal gespeichert</span>
@@ -1013,6 +1015,7 @@ function App() {
       <LearningStatistics active={isMobile && mobileArea === 'progress'} statistics={statistics} total={gamification.totalFocusMilliseconds} canWrite={canWrite} onGoals={changeGoals} />
       </div>
       <div hidden={hideMobile('library')}>
+      <LongTermProjects enabled={canWrite && !isGenerating && !tourOpen && !infoOpen} onBusy={setProjectBusy} />
       <MissionLibrary active={isMobile && mobileArea === 'library'} saveRequest={templateSaveRequest} suggestedOrigin={templateOrigin} onDismissSave={() => setTemplateSaveRequest(null)}
         enabled={canWrite && !isGenerating && pendingClarification === null && !tourOpen} sessionActive={hasActiveSession}
         onUse={plan => {

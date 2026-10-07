@@ -1,3 +1,4 @@
+import { handleProjectRoadmapRequest } from './projectRoadmapApi.mjs'
 import { createServer } from 'node:http'
 import { readFile, stat, realpath } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
@@ -80,7 +81,7 @@ export function createApiMiddleware(handleRequest = handleLearningPlanRequest, {
       if (request.method !== 'GET' && request.method !== 'HEAD') return sendJson(response, 405, { error: { code: 'method_not_allowed', message: 'Dieser Endpunkt akzeptiert GET.' } })
       return sendJson(response, 200, { status: 'ok', aiConfigured: (env.AI_PROVIDER ?? 'mock') === 'mock' || (env.AI_PROVIDER === 'groq' && Boolean(env.GROQ_API_KEY && env.GROQ_MODEL)) })
     }
-    if (pathname !== '/api/learning-plan') {
+    if (pathname !== '/api/learning-plan' && pathname !== '/api/project-roadmap') {
       if (pathname.startsWith('/api/')) return sendJson(response, 404, { error: { code: 'not_found', message: 'API-Endpunkt nicht gefunden.' } })
       return next()
     }
@@ -119,7 +120,8 @@ export function createApiMiddleware(handleRequest = handleLearningPlanRequest, {
     if (request.aborted || response.destroyed) controller.abort()
     activeRequests++
     try {
-      const result = await handleRequest(payload, { diagnosis, signal: controller.signal, env })
+      const handler = pathname === '/api/project-roadmap' ? handleProjectRoadmapRequest : handleRequest
+      const result = await handler(payload, { diagnosis, signal: controller.signal, env })
       return sendJson(response, result.status, result.body)
     } catch {
       const result = diagnosis.failure(500, 'internal_error', 'internal_error')
