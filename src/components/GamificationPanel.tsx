@@ -17,9 +17,10 @@ type GamificationPanelProps = {
   coreRef?: Ref<HTMLDivElement>
   sectionRef?: Ref<HTMLElement>
   displayLevel?: number
+  hidden?: boolean
 }
 
-export default function GamificationPanel({ state, rewardNotice, coreRef, sectionRef, displayLevel }: GamificationPanelProps) {
+export default function GamificationPanel({ state, rewardNotice, coreRef, sectionRef, displayLevel, hidden }: GamificationPanelProps) {
   const focusMinutes = state.totalFocusMilliseconds / 60_000
   const level = getLevel(focusMinutes)
   const effectiveDisplayLevel = import.meta.env.DEV ? displayLevel ?? level : level
@@ -29,7 +30,7 @@ export default function GamificationPanel({ state, rewardNotice, coreRef, sectio
   const equippedOrb = getEquippedOrb(state)
 
   return (
-    <section ref={sectionRef} className="gamification-panel mission-core-panel" aria-label="Dein Mission-Fortschritt">
+    <section hidden={hidden} ref={sectionRef} className="gamification-panel mission-core-panel" aria-label="Dein Mission-Fortschritt">
       <header className="mission-core-heading"><p className="section-kicker">DEIN LANGFRISTIGER FORTSCHRITT</p><h2>Mission Core</h2></header>
       <div className="core-column">
         <div ref={coreRef} className={`mission-core core-orb-${state.equippedOrbId ? equippedOrb.rarity : 'default'} core-effect-${state.selectedCoreEffectId}`}

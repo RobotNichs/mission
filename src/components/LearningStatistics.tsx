@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { formatFocusDuration, goalProgress, statisticsOverview, validGoals, type LearningStatistics as Statistics, type StatisticsGoals } from '../services/learningStatistics'
 
-export default function LearningStatistics({ statistics, total, canWrite, onGoals }: {
-  statistics: Statistics; total: number; canWrite: boolean; onGoals: (goals: StatisticsGoals) => void
+export default function LearningStatistics({ statistics, total, canWrite, onGoals, active }: {
+  statistics: Statistics; total: number; canWrite: boolean; onGoals: (goals: StatisticsGoals) => void; active?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  useEffect(() => { if (active) setOpen(true) }, [active])
   const [now, setNow] = useState(Date.now)
   const [daily, setDaily] = useState(statistics.goals.dailyMinutes)
   const [weekly, setWeekly] = useState(statistics.goals.weeklyMinutes)

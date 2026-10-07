@@ -1,0 +1,15 @@
+# Phase 9A: Mobile App-Bereiche
+
+Bis einschließlich 768 CSS-Pixel verwendet Mission eine feste Bottom-Navigation mit Home, Plan, dem Fokus-Orb, Bibliothek und Fortschritt. Größere Ansichten behalten das vorhandene Dashboard. Die Breite wird über dieselbe Media-Query in React und CSS ermittelt; Größenänderungen werden beobachtet. Es gibt keine Routing- oder Speicheränderung.
+
+Die vorhandenen Komponenten bleiben gemountet. Inaktive Bereiche sind mit `hidden` vollständig aus Darstellung und Tastaturreihenfolge genommen; Formularentwurf, Editor, Bibliotheksfilter und Dev-Vorschauen bleiben erhalten. Navigation ist ausschließlich lokaler React-State. Beim Bereichswechsel wird die neue Überschrift fokussiert und ohne Animation an den Anfang gescrollt. Scrollpositionen werden nicht pro Bereich gespeichert. Nach Reload beginnt die Navigation auf Home, die Mission wird wie bisher konservativ wiederhergestellt.
+
+Home enthält das aktuelle Ziel, Timer, Mission Core und Kisten/Sammlung. Plan enthält das vorhandene Missionsformular, Lernkontext und Planeditor einschließlich Fokusstrategie. Die Bibliothek öffnet ihre bestehende Liste beim Bereichswechsel. Fortschritt enthält Statistik/Ziele, Historie, Prestige und den weiterhin ausschließlich lokalen Entwicklungs-Testmodus. Statistik öffnet sich beim Aufrufen dieses Bereichs. Desktop-Zustände bleiben standardmäßig eingeklappt.
+
+Der zentrale Orb ist die echte `OrbVisual`-Komponente, einschließlich normaler/Prestige-Skins und vorhandener Reduced-Motion-Regeln. Seine Größe verwendet die vorhandene Level-Größenfunktion, auf 64 px begrenzt. Der globale Dev-Level wirkt ebenso. Ohne Mission führt die Orb-Aktion zu Plan. Mit Mission öffnet sie ausschließlich den Fokusmodus: kein Timerstart, keine zweite Session und keine Speicherung. Start/Fortsetzen erfolgt über die vorhandene Timersteuerung. Die Shared-Element-Transition misst den Navigations-Orb. Im Fokusmodus wird die Navigation nicht gerendert. Verlassen pausiert wie bisher und führt zum vorherigen Bereich zurück; es beendet keine Session. Bearbeiten aus dem Fokusmodus führt zum Planbereich.
+
+Die Navigation liegt außerhalb der schreibgeschützten Oberfläche, sodass ein zweiter Tab Bereiche ansehen kann; sämtliche mutierenden Aktionen bleiben hinter der unveränderten Web-Lock-Sperre. Während der Spotlight-Tour sind alle bestehenden Ziele sichtbar und die Navigation gesperrt. Die Tour bleibt freiwillig und verwendet die bestehenden Texte und Ziele.
+
+Safe-Area-Inset unten wird sowohl in der Navigation als auch im Inhaltsabstand berücksichtigt. Tabflächen sind mindestens 56 px hoch; der aktive Zustand hat zusätzlich zur Farbe Hintergrund, Linie und `aria-current`. Die Navigation bleibt unter den bestehenden Dialog- und Tour-Overlays. Die Tests decken 320, 360, 390, 430, 768 und 1280 px als React-/CSS-Verträge ab; JSDOM prüft keine tatsächliche Browser-Geometrie oder iOS-Safe-Area. Eine visuelle Prüfung dieser Breiten, Browser-Zoom und iOS bleibt separat erforderlich.
+
+Keine neuen Abhängigkeiten, Provider-Aufrufe, Belohnungsregeln oder persistenten Datenfelder.

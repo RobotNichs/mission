@@ -1,5 +1,7 @@
 import { getEquippedOrb } from './services/prestigeOrbs'
 import LearningHistory from './components/LearningHistory'
+import MobileNavigation, { mobileAreaLabels, type MobileArea } from './components/MobileNavigation'
+import useMobileLayout from './services/useMobileLayout'
 import LearningStatistics from './components/LearningStatistics'
 import { STATISTICS_STORAGE_KEY, loadStatistics, prepareFocusBooking, reconcileStatistics, countStatisticsSession, validGoals, type LearningStatistics as Statistics, type StatisticsGoals } from './services/learningStatistics'
 import { advanceFocusBlocks, createFocusBlocks, restoreFocusBlocks, intervals, readFocusStrategy, skipFocusBreak, blockSummary, strategyLabel, type FocusBlocks } from './services/focusBlocks'
@@ -207,6 +209,11 @@ function formatTime(totalSeconds: number) {
 }
 
 function App() {
+  const isMobile = useMobileLayout()
+  const [mobileArea, setMobileArea] = useState<MobileArea>('home')
+  const mobileHeading = useRef<HTMLHeadingElement>(null)
+  const navigationOrb = useRef<HTMLDivElement>(null)
+  const navigationFocus = useRef<HTMLButtonElement>(null)
   const [tourOffer, setTourOffer] = useState(shouldOfferTour)
   const [tourOpen, setTourOpen] = useState(false)
   const setupTarget = useRef<HTMLElement>(null)
@@ -367,8 +374,13 @@ function App() {
 
   useEffect(() => {
     if (isFocusMode) hasEnteredFocus.current = true
-    else if (hasEnteredFocus.current) normalTimerButton.current?.focus()
+    else if (hasEnteredFocus.current) (isMobile ? navigationFocus.current : normalTimerButton.current)?.focus()
   }, [isFocusMode])
+  useEffect(() => {
+    if (!isMobile || isFocusMode || tourOpen) return
+    mobileHeading.current?.focus({ preventScroll: true })
+    mobileHeading.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' })
+  }, [mobileArea, isMobile])
 
   function failStorage() {
     session.current = null
@@ -668,6 +680,13 @@ function App() {
     try { stopTimer() } catch { failStorage() }
     setIsFocusMode(false)
   }
+  function openMobileFocus() {
+    if (tourOpen) return
+    if (!mission) { setMobileArea('plan'); return }
+    orbOrigin.current = measureOrb(navigationOrb.current, getEquippedOrb(gamification).id)
+    setIsFocusMode(true)
+  }
+  const hideMobile = (area: MobileArea) => isMobile && !tourOpen && mobileArea !== area
 
   if (isFocusMode) return (
     <>
@@ -678,7 +697,7 @@ function App() {
         countdown={formatTime(focusBlocks ? focusBlocks.remainingMilliseconds / 1000 : mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)} stopwatch={mission?.timeMode === 'stopwatch'} isRunning={isRunning} finished={mission?.timeMode !== 'stopwatch' && remainingSeconds === 0}
         phase={focusBlocks?.phase} blockLabel={focusBlocks ? blockStatus() : undefined} onSkipBreak={focusBlocks?.phase === 'break' ? skipBreak : undefined}
         enabled={canWrite} error={storageError} onToggleTimer={toggleTimer} onResetTimer={resetTimer}
-        onEditPlan={mission ? () => { setEditingPlan(mission); setIsFocusMode(false) } : undefined}
+        onEditPlan={mission ? () => { setEditingPlan(mission); if (isMobile) setMobileArea('plan'); setIsFocusMode(false) } : undefined}
         onEndSession={hasActiveSession ? () => endLearningSession() : undefined}
         onCompleteSession={hasActiveSession ? () => endLearningSession('completed') : undefined}
         onToggleStep={toggleStep} onLeave={leaveFocusMode} />
@@ -687,6 +706,7 @@ function App() {
   )
 
   return (
+    <>
     <fieldset className="mission-writer-surface" disabled={!canWrite} onClickCapture={event => {
       if (tourOpen && !(event.target instanceof Element && event.target.closest('[data-tour-controls]'))) { event.preventDefault(); event.stopPropagation() }
     }} onChangeCapture={event => {
@@ -695,9 +715,9 @@ function App() {
       if (tourOpen) { event.preventDefault(); event.stopPropagation() }
     }}>
     {!canWrite && <p role="status" className="writer-notice">{storageError ?? 'Mission ist in einem anderen Tab aktiv. Dieser Tab zeigt den gespeicherten Stand und übernimmt nach dessen Schließen.'}</p>}
-    <main className={`app-shell theme-${gamification.selectedBackgroundId} ${hasEnteredFocus.current ? 'focus-return' : ''}`}>
+    <main data-mobile-area={isMobile ? mobileArea : undefined} className={`app-shell theme-${gamification.selectedBackgroundId} ${hasEnteredFocus.current ? 'focus-return' : ''}`}>
       <header className="topbar">
-        <a className="brand" href="#start" aria-label="Mission Startseite">
+        <a className="brand" href="#start" aria-label="Mission Startseite" onClick={event => { if (isMobile) { event.preventDefault(); setMobileArea('home') } }}>
           <span className="brand-mark">m<span>.</span></span>
           <span className="brand-name">mission</span>
         </a>
@@ -708,6 +728,12 @@ function App() {
           <span className="avatar" aria-label="Dein Lernbereich">L</span>
         </div>
       </header>
+      {isMobile && <h1 ref={mobileHeading} tabIndex={-1} className="mobile-area-heading">{mobileAreaLabels[mobileArea]}</h1>}
+      {isMobile && <section hidden={hideMobile('home')} className="mobile-mission-summary" aria-label="Heutige Mission">
+        <p className="section-kicker">DEINE MISSION HEUTE</p><h2>{mission?.goal ?? 'Bereit für deine nächste Mission?'}</h2>
+        <p>{isRunning ? 'Fokuszeit läuft' : hasActiveSession ? 'Session pausiert – dein Fortschritt bleibt erhalten.' : 'Dein Timer ist bereit.'}</p>
+        <button className="focus-leave" type="button" onClick={() => setMobileArea('plan')}>{mission ? 'Plan ansehen' : 'Mission erstellen'}</button>
+      </section>}
       {tourOffer && !isRunning && <aside className="tour-offer" aria-label="Mission kennenlernen">
         <span>Mission kurz kennenlernen?</span>
         <button type="button" className="focus-leave" onClick={() => { setTourOffer(false); setTourOpen(true) }}>Tour starten</button>
@@ -715,7 +741,7 @@ function App() {
       </aside>}
       {tourOpen && <SpotlightTour targets={tourTargets.current} onClose={closeTour} />}
 
-      <section className="intro" id="start">
+      <section hidden={isMobile} className="intro" id="start">
         <div>
           <p className="eyebrow">MISSION CONTROL / DEIN FOKUS-RAUM</p>
           <h1>Heute kommst du <span>weiter.</span></h1>
@@ -725,7 +751,7 @@ function App() {
       </section>
 
       <div className="workspace-grid">
-        <section ref={setupTarget} className="panel setup-panel" aria-labelledby="setup-heading">
+        <section hidden={hideMobile('plan')} ref={setupTarget} className="panel setup-panel" aria-labelledby="setup-heading">
           <div className="panel-heading">
             <div className="heading-icon lavender">✎</div>
             <div>
@@ -860,7 +886,7 @@ function App() {
           </form>
         </section>
 
-        <section ref={planTarget} className="panel plan-panel" aria-labelledby="plan-heading">
+        <section hidden={hideMobile('plan')} ref={planTarget} className="panel plan-panel" aria-labelledby="plan-heading">
           <div className="panel-heading plan-heading">
             <div className="heading-icon mint">☷</div>
             <div>
@@ -873,7 +899,7 @@ function App() {
           {editingPlan && <PlanEditor initial={editingPlan} onSave={saveEditedPlan} onCancel={() => setEditingPlan(null)} disabled={!canWrite || isGenerating || pendingClarification !== null} />}
           {mission && !editingPlan && <><p className="generation-notice">Alle Schritte sind bearbeitbar. KI-Pläne sind Vorschläge. Du entscheidest über deinen Plan.</p>
             <button type="button" className="clarification-skip" disabled={isGenerating || pendingClarification !== null} onClick={() => setEditingPlan(mission)}>Lernplan bearbeiten</button>
-            <button type="button" className="clarification-skip" disabled={isGenerating || pendingClarification !== null} onClick={() => setTemplateSaveRequest({ ...mission, steps: mission.steps.map(s => ({ ...s })) })}>Als Vorlage speichern</button></>}
+            <button type="button" className="clarification-skip" disabled={isGenerating || pendingClarification !== null} onClick={() => { if (isMobile) setMobileArea('library'); setTemplateSaveRequest({ ...mission, steps: mission.steps.map(s => ({ ...s })) }) }}>Als Vorlage speichern</button></>}
           {!editingPlan && (mission ? (
             <>
               <div className="plan-summary">
@@ -922,7 +948,7 @@ function App() {
         </section>
       </div>
 
-      <section ref={timerTarget} className="timer-panel" aria-label="Lern-Timer">
+      <section hidden={hideMobile('home')} ref={timerTarget} className="timer-panel" aria-label="Lern-Timer">
         <FocusEnvironmentPicker value={focusEnvironment} onChange={changeFocusEnvironment} />
         {environmentNotice && <p className="environment-notice">{environmentNotice}</p>}
         <div className="timer-message">
@@ -947,6 +973,7 @@ function App() {
 
       <div className="mission-support">
       <GamificationPanel
+        hidden={hideMobile('home')}
         displayLevel={effectiveDisplayLevel}
         sectionRef={coreTarget}
         coreRef={dashboardOrb}
@@ -954,10 +981,11 @@ function App() {
         rewardNotice={rewardNotice}
       />
 
-      <OrbCrateShop sectionRef={cratesTarget} state={gamification} enabled={canWrite} onPurchase={handleCratePurchase} onOpenCollection={() => setCollectionOpen(true)} />
+      <div className="mobile-crate-container" hidden={hideMobile('home')}><OrbCrateShop sectionRef={cratesTarget} state={gamification} enabled={canWrite} onPurchase={handleCratePurchase} onOpenCollection={() => setCollectionOpen(true)} /></div>
       {collectionOpen && <OrbCollectionDialog state={gamification} enabled={canWrite} onClose={() => setCollectionOpen(false)}
         onEquipOrb={id => { if (writer.current) commitGamification(equipOrb(game.current, id)) }} />}
       {import.meta.env.DEV && GamificationDebug && isLocalDevelopment(import.meta.env.DEV, window.location.hostname) && (
+        <div hidden={hideMobile('progress')} className="mobile-dev-container">
         <Suspense fallback={null}>
           <GamificationDebug state={gamification} enabled={canWrite} displayLevelOverride={displayLevelOverride}
             onDisplayLevelChange={value => {
@@ -968,12 +996,16 @@ function App() {
             try { commitGamification(transform(game.current)); return true } catch { failStorage(); return false }
           }} />
         </Suspense>
+        </div>
       )}
 
       </div>
+      <div hidden={hideMobile('progress')}>
       <LearningHistory entries={history} />
-      <LearningStatistics statistics={statistics} total={gamification.totalFocusMilliseconds} canWrite={canWrite} onGoals={changeGoals} />
-      <MissionLibrary saveRequest={templateSaveRequest} suggestedOrigin={templateOrigin} onDismissSave={() => setTemplateSaveRequest(null)}
+      <LearningStatistics active={isMobile && mobileArea === 'progress'} statistics={statistics} total={gamification.totalFocusMilliseconds} canWrite={canWrite} onGoals={changeGoals} />
+      </div>
+      <div hidden={hideMobile('library')}>
+      <MissionLibrary active={isMobile && mobileArea === 'library'} saveRequest={templateSaveRequest} suggestedOrigin={templateOrigin} onDismissSave={() => setTemplateSaveRequest(null)}
         enabled={canWrite && !isGenerating && pendingClarification === null && !tourOpen} sessionActive={hasActiveSession}
         onUse={plan => {
           if (!writer.current || appSnapshot.current.activeSession || session.current) return
@@ -983,13 +1015,19 @@ function App() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); appSnapshot.current = next
             updateBlocks(null); setMission(plan); setLearningContext(readLearningContext(plan.learningContext)); setRemainingSeconds(remaining); setElapsedSeconds(0); setEditingPlan(null)
             setShowMissionCompletion(false); setGenerationNotice('Vorlage übernommen. Dein Timer bleibt pausiert.'); setTemplateSaveRequest(null); setTemplateOrigin('custom')
+            if (isMobile) setMobileArea('plan')
           } catch { failStorage() }
         }} />
-      <PrestigePanel focusMilliseconds={gamification.totalFocusMilliseconds} />
+      </div>
+      <div hidden={hideMobile('progress')}><PrestigePanel focusMilliseconds={gamification.totalFocusMilliseconds} /></div>
       <footer className="footer"><span>MISSION <i>·</i> DEIN LERNWEG, IN DEINEM TEMPO.</span><span>Mit Ruhe. Mit Fokus. Mit dir.</span></footer>
       {showMissionCompletion && <MissionRewardDialog onClose={() => setShowMissionCompletion(false)} />}
     </main>
     </fieldset>
+    {isMobile && <MobileNavigation area={mobileArea} onArea={setMobileArea} onFocus={openMobileFocus}
+      orb={getEquippedOrb(gamification)} level={effectiveDisplayLevel} disabled={tourOpen}
+      orbRef={navigationOrb} focusRef={navigationFocus} hasMission={Boolean(mission)} />}
+    </>
   )
 }
 

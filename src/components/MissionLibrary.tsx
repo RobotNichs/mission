@@ -3,10 +3,11 @@ import type { LearningPlan } from '../types/learningPlan'
 import PlanEditor from './PlanEditor'
 import { categories, deleteTemplate, duplicateTemplate, exampleTemplates, exportTemplate, findTemplates, importTemplate, loadTemplates, MAX_IMPORT_BYTES, missionFromTemplate, saveTemplate, templateFilename, templateFromPlan, TEMPLATE_STORAGE_KEY, type MissionTemplate, type TemplateMetadata } from '../services/missionTemplates'
 
-type Props = { saveRequest: LearningPlan | null; onDismissSave: () => void; onUse: (plan: LearningPlan) => void; enabled: boolean; sessionActive: boolean; suggestedOrigin?: 'custom' | 'ai' }
-export default function MissionLibrary({ saveRequest, onDismissSave, onUse, enabled, sessionActive, suggestedOrigin = 'custom' }: Props) {
+type Props = { saveRequest: LearningPlan | null; onDismissSave: () => void; onUse: (plan: LearningPlan) => void; enabled: boolean; sessionActive: boolean; suggestedOrigin?: 'custom' | 'ai'; active?: boolean }
+export default function MissionLibrary({ saveRequest, onDismissSave, onUse, enabled, sessionActive, suggestedOrigin = 'custom', active }: Props) {
   const [items, setItems] = useState<MissionTemplate[]>([]), [error, setError] = useState('')
   const [open, setOpen] = useState(false), [query, setQuery] = useState(''), [language, setLanguage] = useState(''), [category, setCategory] = useState(''), [origin, setOrigin] = useState(''), [sort, setSort] = useState('updated')
+  useEffect(() => { if (active) setOpen(true) }, [active])
   const [editing, setEditing] = useState<{ plan: LearningPlan; previous?: MissionTemplate } | null>(null)
   const [metadata, setMetadata] = useState<TemplateMetadata>({ title: '', description: '', language: 'de', category: 'Sonstiges', tags: [], origin: 'custom' })
   const [tags, setTags] = useState('')
