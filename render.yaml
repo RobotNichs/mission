@@ -1,0 +1,17 @@
+# Local deployment declaration only; applying it is a separate manual action.
+services:
+  - type: web
+    name: mission
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AI_PROVIDER
+        value: mock
+      # Build needs Vite and TypeScript even with NODE_ENV=production.
+      - key: NPM_CONFIG_INCLUDE
+        value: dev

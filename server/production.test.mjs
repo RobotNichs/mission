@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { once } from 'node:events'
 import { build } from 'vite'
 import { createProductionServer } from './index.mjs'
-import { productionConfig, createAiLimiter, securityHeaders } from './production.mjs'
+import { productionConfig, createAiLimiter, securityHeaders, sameOriginRequest } from './production.mjs'
 import { assertNoClientSecrets } from './buildSecurity.mjs'
 import { handleLearningPlanRequest } from './learningPlanApi.mjs'
 const input = { goal: 'SQL JOINs wiederholen', timeBudgetMinutes: 15, energyLevel: 'high', learningBlocker: null }
@@ -21,6 +21,8 @@ beforeEach(async () => {
   await writeFile(join(root, '.env'), secret)
   await writeFile(join(root, 'private.json'), secret)
   await writeFile(join(root, 'sw.js'), 'safe worker')
+  await writeFile(join(root, 'manifest.webmanifest'), await readFile('public/manifest.webmanifest'))
+  await writeFile(join(root, 'icons', 'mission-192.png'), await readFile('public/icons/mission-192.png'))
   server = createProductionServer({ env: { NODE_ENV: 'production', AI_PROVIDER: 'mock' }, root })
   server.listen(0, '127.0.0.1'); await once(server, 'listening')
   origin = `http://127.0.0.1:${server.address().port}`
@@ -32,6 +34,41 @@ afterEach(async () => {
   vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.useRealTimers()
 })
 const post = (body = input, headers = {}) => fetch(`${origin}/api/learning-plan`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: typeof body === 'string' ? body : JSON.stringify(body) })
+it('declares a secret-free Render Node service with the actual build and start commands', async () => {
+  const blueprint = await readFile('render.yaml', 'utf8')
+  const pkg = JSON.parse(await readFile('package.json', 'utf8'))
+  const lock = JSON.parse(await readFile('package-lock.json', 'utf8'))
+  for (const value of ['runtime: node', 'plan: free', 'buildCommand: npm ci && npm run build', 'startCommand: npm start', 'healthCheckPath: /api/health', 'key: NPM_CONFIG_INCLUDE', 'value: dev', 'value: mock', 'value: production']) expect(blueprint).toContain(value)
+  expect(blueprint).not.toMatch(/GROQ_API_KEY|gsk_|PUBLIC_ORIGIN|key: PORT|key: HOST/)
+  expect(pkg.scripts.start).toBe('node server/index.mjs')
+  expect(pkg.scripts.build).toBe('tsc -b && vite build')
+  expect(pkg.engines.node).toBe('>=22.12.0 <23 || >=24.0.0 <25')
+  expect(lock.packages[''].engines.node).toBe(pkg.engines.node)
+})
+it('supports a Render-assigned port and HTTPS origin without a hardcoded deployment hostname', () => {
+  const publicOrigin = 'https://mission-example.onrender.com'
+  const env = { NODE_ENV: 'production', PORT: '10000', PUBLIC_ORIGIN: publicOrigin }
+  expect(productionConfig(env)).toEqual({ port: 10000, host: '0.0.0.0' })
+  const request = { headers: { origin: publicOrigin, host: 'internal-proxy:10000' } }
+  expect(sameOriginRequest(request, env)).toBe(true)
+  expect(sameOriginRequest({ headers: { ...request.headers, origin: 'https://foreign.example' } }, env)).toBe(false)
+  expect(sameOriginRequest({ headers: { origin: publicOrigin, host: 'mission-example.onrender.com' } }, {})).toBe(true)
+  expect(sameOriginRequest(request, {})).toBe(false)
+})
+it('serves the root app-shell and PWA files with safe cache rules, never API HTML fallbacks', async () => {
+  for (const path of ['/', '/index.html']) {
+    const response = await fetch(`${origin}${path}`)
+    expect(response.status).toBe(200); expect(await response.text()).toContain('<title>Mission</title>')
+  }
+  const manifest = await fetch(`${origin}/manifest.webmanifest`)
+  expect(manifest.headers.get('cache-control')).toBe('no-cache')
+  expect(await manifest.json()).toMatchObject({ start_url: '/', scope: '/' })
+  expect((await fetch(`${origin}/icons/mission-192.png`)).status).toBe(200)
+  expect((await fetch(`${origin}/assets/app.js`)).headers.get('cache-control')).toContain('immutable')
+  const missing = await fetch(`${origin}/api/missing`)
+  expect(missing.status).toBe(404); expect(missing.headers.get('cache-control')).toBe('no-store')
+  expect(missing.headers.get('content-type')).toContain('application/json')
+})
 it('serves frontend and mock API from one production deployment', async () => {
   expect((await fetch(origin)).status).toBe(200)
   const response = await post(); expect(response.status).toBe(200)

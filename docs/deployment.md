@@ -2,7 +2,7 @@
 
 ## Betrieb
 
-Ein Node-fähiges Deployment bedient `dist/` und `/api/*` aus derselben Origin. Root-Deployment `/` wird vorausgesetzt. Keine Accounts, Datenbank oder externe Infrastruktur wurden eingerichtet. Node benötigt mindestens 20.19.0; für ein öffentliches Deployment eine aktuell unterstützte LTS-Version verwenden.
+Ein Node-fähiges Deployment bedient `dist/` und `/api/*` aus derselben Origin. Root-Deployment `/` wird vorausgesetzt. Keine Accounts, Datenbank oder externe Infrastruktur wurden eingerichtet. Die frühere technische Mindestversion 20.19.0 ist inzwischen EOL. Das Projekt verlangt jetzt Node 22 ab 22.12.0 oder Node 24, jeweils ohne Wechsel in die nächste Major-Version; für Render wird Node 24 LTS empfohlen. Keine Patch-Version ist festgeschrieben. Siehe [Node-Releases](https://nodejs.org/en/about/previous-releases) und [Render Node-Version](https://render.com/docs/node-version). Render berücksichtigt `package.json` engines, sofern kein höher priorisiertes NODE_VERSION/.node-version/.nvmrc gesetzt ist.
 
 ```sh
 npm ci
@@ -91,3 +91,28 @@ Nach Deployment:
 6. Proxy/NAT-Auswirkung der Clientlimits und Mehrinstanz-Grenzen prüfen. Öffentliche Beta nur innerhalb bewusst akzeptierter Kostengrenzen betreiben.
 
 Echte HTTPS-/Hosting-/Geräteabnahme und providerseitige Budgetprüfung bleiben ausstehend. Keine neue Infrastruktur, npm-Abhängigkeiten, Provider-Retries oder Git-Commits in Phase 10A.
+
+## Render – erste öffentliche Beta
+
+Ein einzelner **Node Web Service**, keine Static Site: Der bestehende Node-Prozess liefert Frontend, PWA und API gemeinsam aus. `render.yaml` ist eine optionale kleine Blueprint-Deklaration für den Free-Plan und Mock-Modus; diese Datei legt allein keine Infrastruktur an. Alternativ manuell dieselben Werte verwenden. Keine Secrets sind im Blueprint enthalten.
+
+1. Repository nach eigener Git-/Secret-Prüfung selbst zu GitHub pushen. Diese Phase führt weder Push noch Commit aus.
+2. In Render einen neuen Web Service erstellen.
+3. Das passende GitHub-Repository verbinden; Projektwurzel als Root verwenden.
+4. Runtime **Node** wählen. Node-Version kommt aus `package.json` (empfohlen 24 LTS); alte NODE_VERSION-Overrides entfernen oder bewusst auf die unterstützte Reihe setzen.
+5. Build Command: `npm ci && npm run build`.
+6. Start Command: `npm start` (führt `node server/index.mjs` aus, nicht Vite Preview).
+7. Health Check Path: `/api/health`. Dieser liefert schnell HTTP 200, no-store und neutralen Status ohne Groq-Aufruf.
+8. Environment: `NODE_ENV=production`, `AI_PROVIDER=mock`, **`NPM_CONFIG_INCLUDE=dev`**. Letzteres ist wichtig: npm ci muss Vite/TypeScript trotz Production-Environment installieren. Kein npm omit=dev beim Build. PORT wird von Render bereitgestellt; nicht selbst setzen. HOST nicht nötig, Standard ist 0.0.0.0. PUBLIC_ORIGIN zunächst optional leer lassen.
+9. Deploy selbst auslösen; Build und neutralen Startup-Log kontrollieren. Kein Key, Lernziel, Freitext oder ENV-Dump gehört in Logs. Render-Logs wurden hier nicht tatsächlich eingesehen.
+10. Öffentliche HTTPS-URL prüfen: Startseite, `/api/health`, Lernplan im Mock-Modus und unbekannte `/api/*`-Route (JSON-404, niemals HTML).
+11. `PUBLIC_ORIGIN` auf die tatsächliche HTTPS-Origin setzen, z. B. `https://mission-example.onrender.com`, ohne Unterpfad. Das ist ausschließlich ein Beispiel, keine im Code festgelegte Adresse.
+12. Erneut deployen und Same-Origin-API testen. Ohne PUBLIC_ORIGIN bleibt die vorhandene Origin-Host-Prüfung aktiv. Proxy-Header werden nicht als vertrauenswürdig angenommen.
+13. Manifest `/manifest.webmanifest`, `/sw.js` und Icons prüfen, danach Installation, Standalone, Offline-Shell und Update gemäß Phase 9B. Manifest start_url und Scope sind `/`; Registrierung `/sw.js` hat Root-Scope. Kein Unterverzeichnis-Deployment. `/api/*` bleibt network-only/no-store; Worker und Manifest no-cache, gehashte Assets immutable. HTTPS wird vom Hosting bereitgestellt.
+14. Erst nach technischer Abnahme optional und bewusst Groq aktivieren: `AI_PROVIDER=groq`, `GROQ_MODEL=<bisher konfiguriertes Modell>`, `GROQ_API_KEY=<serverseitiges Render Secret>`. Keine VITE_-Variablen, keine Schlüssel im Repository/Blueprint. Ein echter Groq-Test ist ein separater, möglicherweise kostenpflichtiger Schritt und wurde hier nicht ausgeführt.
+
+Die Oberfläche navigiert lokal ohne URL-Router. `/` und `/index.html` liefern die App-Shell; beliebige Pfade sind absichtlich kein pauschaler SPA-Fallback. So können API-Fehler und verbotene Dateien nicht versehentlich HTML erhalten.
+
+**Free-Plan:** Render kann den Service nach 15 Minuten ohne eingehenden Verkehr schlafen legen; der nächste Aufruf kann beim Wiederanlaufen etwa eine Minute dauern. Aktuelle Regeln vor Deployment prüfen: [Render Free](https://render.com/docs/free). Die In-Memory-Rate-Limits gehen bei Neustart verloren. Nutzer-LocalStorage liegt im jeweiligen Browser und wird dadurch nicht gelöscht. Mission benötigt für aktuelle Nutzerdaten keine persistente Serverfestplatte. Browser-/Originwechsel, Browser-Speicherlöschung und Gerätewechsel übertragen lokale Daten nicht automatisch.
+
+Hinter Render können mehrere Nutzer denselben Proxy-Socket und damit das 10-Requests-Limit teilen. Die Phase-10A-Grenzen bleiben bewusst unverändert; vor größerer AI-Beta Trusted-Proxy-/Edge-Schutz und Anbieterbudgets gesondert klären. Health ist kein Test der Providerverfügbarkeit. Manuelle HTTPS-/Render-/Geräteabnahme bleibt erforderlich; Blueprint wurde nicht bei Render angewendet. Referenzen: [Web Services](https://render.com/docs/web-services), [Blueprint](https://render.com/docs/blueprint-spec), [Health Checks](https://render.com/docs/health-checks).
