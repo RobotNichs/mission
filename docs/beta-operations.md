@@ -10,7 +10,7 @@ Import: maximal 2 MiB, nur Version 1, vollständige Strukturprüfung vor einer �
 
 Datenaktionen nur bei angehaltenem Timer, keiner Planerzeugung/Rückfrage und bestehender exklusiver App-Web-Lock. Vor Ersetzen/Löschen andere Mission-Tabs schließen. Import lädt neu; bestehendes Reload-Verhalten stellt Timer angehalten her und rechnet keine Offline-Zeit an. Löschen entfernt nur die feste Mission-Allowlist, nicht Browser-Globaldaten und nicht den Service Worker. Backups selbst erzeugen keine Vergütung.
 
-Der Feedback-Link enthält ausschließlich den neutralen Betreff Mission Beta Feedback. Gewünschter temporärer Mock-Empfänger vorname@nachname@gmail.com ist wegen zweier @-Zeichen ungültig und muss vor Einladung durch einen echten Kanal ersetzt werden. Kein automatischer Versand, kein Tracking und keine Lerntexte in der URL.
+Der Feedback-Link öffnet https://github.com/RobotNichs/mission/issues/new in einem neuen Tab. Kein automatischer Versand, kein Tracking und keine Lerntexte oder anderen Nutzerdaten in der URL. GitHub-Issues können öffentlich sichtbar sein; keine privaten Lerntexte oder Backup-Dateien teilen.
 
 ## Technische Beobachtung und Kosten
 
@@ -29,5 +29,5 @@ Limits sind keine harte Tageskostenobergrenze. Missbrauch kann gemeinsame Kontin
 - Beschädigtes Backup muss unverändert ablehnen; Löschung nur Mission-Daten, fremder Testschlüssel bleibt erhalten.
 - Mobile Navigation, Fokusmodus, Pomodoro, Bibliothek, Statistik und Tour prüfen.
 - Client-Artefakte secretfrei; technische Logs enthalten keine Lerninhalte. Hosting-Logs separat prüfen.
-- Echten Feedback-Empfänger konfigurieren; Mock-Adresse ist nicht beta-tauglich.
+- GitHub-Feedback-Link und aktivierte Issues vor der Einladung prüfen.
 - Datenschutztexte gegen tatsächliche AI-/Hosting-Konfiguration prüfen; für öffentliche rechtliche Anforderungen Betreiberangaben/Datenschutzerklärung separat fachkundig klären, diese technischen Hinweise ersetzen sie nicht.

@@ -11,7 +11,8 @@ it('shows beta, privacy and neutral feedback without learning contents', () => {
   expect(screen.getByText(/Beta · Funktionen/)).toBeTruthy()
   expect(screen.getByText('Datenschutz & lokale Daten')).toBeTruthy()
   const link = screen.getByRole('link', { name: 'Feedback geben' })
-  expect(link.getAttribute('href')).toBe('mailto:vorname%40nachname%40gmail.com?subject=Mission%20Beta%20Feedback')
+  expect(link.getAttribute('href')).toBe('https://github.com/RobotNichs/mission/issues/new')
+  expect(link.getAttribute('rel')).toBe('noopener noreferrer')
 })
 it('requires explicit delete confirmation, preserves foreign storage and reloads only after confirmation', () => {
   const reload = vi.fn(); localStorage.setItem('mission.focus-environment.v1', 'liquid'); localStorage.setItem('foreign', 'keep')
