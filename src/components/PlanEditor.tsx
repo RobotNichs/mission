@@ -53,7 +53,7 @@ export default function PlanEditor({ initial, onSave, onCancel, disabled, saveLa
         </div>
       <div className="editor-actions editor-step-actions"><button type="button" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Schritt ${i + 1} nach oben`}>Nach oben</button>
         <button type="button" disabled={i === draft.steps.length - 1} onClick={() => move(i, 1)} aria-label={`Schritt ${i + 1} nach unten`}>Nach unten</button>
-        <button type="button" onClick={() => setDraft(p => ({ ...p, steps: p.steps.filter(step => step.id !== s.id) }))}>Schritt {i + 1} löschen</button></div>
+        <button className="button-destructive" type="button" onClick={() => setDraft(p => ({ ...p, steps: p.steps.filter(step => step.id !== s.id) }))}>Schritt {i + 1} löschen</button></div>
     </li>})}</ol>
     <div className="editor-actions editor-save-actions"><button type="button" disabled={draft.steps.length >= 100} onClick={() => {
       const id = createLearningPlanId()

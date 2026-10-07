@@ -1056,3 +1056,99 @@ button:disabled { cursor: not-allowed; }
 .app-shell[data-app-area="home"] .mobile-mission-summary { order: 2; }
 .app-shell[data-app-area="home"] .timer-panel { order: 3; }
 .app-shell[data-app-area="home"] .footer { order: 4; }
+
+/* Phase 12B: dashboard polish only; session visuals and orb sizing stay independent. */
+:root {
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --sidebar-width: 208px;
+  --content-max: 1280px;
+}
+.app-shell[data-app-area] { --card-padding: var(--spacing-lg); }
+.app-shell :is(.panel, .gamification-panel, .timer-panel, .projects-panel, .learning-statistics, .learning-history, .prestige-panel) {
+  border-color: var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: none;
+}
+.app-shell :is(.setup-panel, .plan-panel, .projects-panel, .timer-panel, .gamification-panel) { padding: var(--card-padding, 24px); }
+.app-shell :is(.projects-panel, .mission-library, .learning-statistics, .learning-history, .prestige-panel) { margin-block: var(--spacing-md); }
+.app-shell .workspace-grid { gap: var(--spacing-lg); align-items: start; }
+.app-shell .mobile-area-heading { margin-block: var(--spacing-lg); font-size: 28px; font-weight: 600; letter-spacing: -.7px; }
+.app-shell :is(.panel-heading, .plan-heading) { margin-bottom: var(--spacing-md); }
+.app-shell :is(h2, h3) { line-height: 1.3; overflow-wrap: anywhere; }
+.app-shell h3 { font-size: 17px; font-weight: 600; }
+.app-shell :is(.section-kicker, .summary-label) { font-size: 10px; letter-spacing: 1px; }
+.app-shell :is(.field-hint, .shop-description, .crate-chances, .shop-notice, .reward-notice) { font-size: 12px; line-height: 1.6; }
+.app-shell .field-label { margin-bottom: var(--spacing-sm); }
+.app-shell :is(input:not([type=checkbox]):not([type=radio]):not([type=range]), select) { min-height: 44px; }
+.app-shell :is(.project-form, .library-content) label { gap: var(--spacing-sm); }
+.app-shell .project-form fieldset { border: 0; padding: 0; margin-block: var(--spacing-md); }
+.app-shell .project-form label { margin-block: var(--spacing-md); }
+.app-shell :is(.project-actions, .library-actions, .editor-actions, .crate-heading-actions) { gap: var(--spacing-sm); }
+.app-shell :is(.project-actions, .library-actions) button { border-radius: 6px; font-size: 13px; padding: 8px 12px; }
+.app-shell :is(.primary-button, .timer-button), .app-shell .project-actions .primary-button, .app-shell .library-actions button:first-child {
+  background: var(--accent); color: var(--space-bg); border-color: var(--accent); font-weight: 600;
+}
+.app-shell :is(.reset-button, .clarification-skip, .clarification-cancel), .app-shell .editor-step-actions button { background: transparent; }
+.app-shell button:disabled, .app-shell fieldset:disabled button { opacity: .65; cursor: not-allowed; }
+.app-shell .plan-summary { border: 0; padding: var(--spacing-md); }
+.app-shell .summary-copy p { font-size: 14px; line-height: 1.6; }
+.app-shell .task-step { padding-block: 14px; }
+.app-shell .step-duration { color: var(--muted); }
+.app-shell .mission-core-panel .core-column { gap: var(--spacing-sm); }
+.app-shell .core-stats { gap: var(--spacing-md); margin-block: var(--spacing-md); }
+.app-shell .core-stats dd { font-size: 18px; }
+.app-shell .focus-copy { margin-top: var(--spacing-md); }
+.app-shell .crate-shop { padding: var(--spacing-md); }
+.app-shell .crate-shop .shop-heading { margin-bottom: var(--spacing-sm); align-items: center; }
+.app-shell .crate-shop :is(.shop-description, .crate-chances, .shop-notice) { margin-block: var(--spacing-xs); }
+.app-shell .crate-shop h2 { font-size: 17px; }
+.app-shell .crate-buy { background: var(--surface-raised); color: var(--ink); border-color: var(--line); }
+.app-shell .project-list { gap: var(--spacing-sm); margin-block: var(--spacing-md); }
+.app-shell .project-list button { text-align: left; font-weight: 500; }
+.app-shell .project-list button[aria-pressed="true"] { border-left: 3px solid var(--accent); background: var(--surface-raised); color: var(--ink); font-weight: 600; }
+.app-shell .project-phases { list-style: none; padding: 0; }
+.app-shell .project-phases > li { margin-block: var(--spacing-sm); }
+.app-shell .phase-toggle { padding: 10px 14px; gap: var(--spacing-xs); }
+.app-shell .project-phases > li > div { padding: var(--spacing-md); }
+.app-shell .project-phases p { line-height: 1.65; margin-bottom: var(--spacing-sm); }
+.app-shell .project-phases ul { padding-left: var(--spacing-md); }
+.app-shell .project-phases ul > li { padding-block: var(--spacing-sm); }
+.app-shell .project-milestone-status { min-height: 44px; margin-block: var(--spacing-xs); align-items: center; }
+.app-shell .project-milestone-status input { width: 18px; height: 18px; }
+.app-shell .library-filters { gap: var(--spacing-sm); }
+.app-shell .library-list { gap: var(--spacing-sm); }
+.app-shell .library-list li { padding: var(--spacing-md); border-radius: var(--radius); border-color: var(--line); background: var(--surface-input); }
+.app-shell .library-list :is(small, .library-tags) { color: var(--muted); font-size: 12px; }
+.app-shell .library-actions { margin-top: var(--spacing-md); }
+.app-shell .statistics-totals { gap: var(--spacing-md); font-variant-numeric: tabular-nums; }
+.app-shell .statistics-totals dt { font-size: 12px; color: var(--muted); }
+.app-shell .statistics-goals { gap: var(--spacing-md); }
+.app-shell .statistics-settings { border: 0; border-top: 1px solid var(--line); padding: var(--spacing-md) 0 0; }
+.app-shell .loading-status { gap: var(--spacing-sm); padding-block: var(--spacing-md); font-size: 13px; }
+.app-shell :is(.project-actions, .library-actions, .editor-step-actions) .button-destructive { color: #ffc2bc; border-color: #805052; background: transparent; }
+.app-shell :is(.library-list, .desktop-sidebar) { scrollbar-width: thin; scrollbar-color: #52647d var(--surface-input); }
+@media (min-width: 769px) {
+  .desktop-sidebar { width: var(--sidebar-width); padding: var(--spacing-lg) var(--spacing-md); }
+  .desktop-sidebar :is(button, a) { gap: 12px; font-size: 14px; }
+  .sidebar-help { border-top: 1px solid var(--line); padding-top: var(--spacing-md); }
+  .app-shell[data-app-area] {
+    width: min(var(--content-max), calc(100% - var(--sidebar-width) - 64px));
+    margin-left: max(calc(var(--sidebar-width) + 32px), calc((100% - var(--sidebar-width) - var(--content-max)) / 2 + var(--sidebar-width)));
+  }
+}
+@media (max-width: 768px) {
+  .app-shell[data-app-area] { --card-padding: var(--spacing-md); width: calc(100% - 32px); }
+  .app-shell[data-app-area] .mobile-area-heading { margin-block: var(--spacing-md); font-size: 24px; }
+  .app-shell .mission-core-panel.gamification-panel { gap: var(--spacing-sm); }
+  .app-shell .mission-core-panel .core-column { padding-block: var(--spacing-xs); width: min(190px, 100%); justify-self: center; }
+  .app-shell .mission-core-panel .core-stats { margin-block: var(--spacing-sm); gap: var(--spacing-sm); }
+  .app-shell .mission-core-panel .core-stats dd { font-size: 16px; }
+  .app-shell .mission-core-heading .section-kicker { margin-bottom: var(--spacing-xs); }
+  .app-shell .crate-shop .shop-heading { flex-wrap: wrap; gap: var(--spacing-sm); }
+  .app-shell .crate-heading-actions { width: 100%; }
+  .app-shell .crate-heading-actions button { flex: 1 1 120px; }
+  .app-shell .project-phases > li > div { padding-inline: var(--spacing-sm); }
+  .mobile-navigation button { font-size: 10px; line-height: 1.3; }
+}

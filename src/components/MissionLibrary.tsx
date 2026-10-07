@@ -78,7 +78,7 @@ export default function MissionLibrary({ saveRequest, onDismissSave, onUse, enab
             const url = URL.createObjectURL(new Blob([exportTemplate(t)], { type: 'application/json' })), link = document.createElement('a')
             link.href = url; link.download = templateFilename(t); link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
           })}>Exportieren</button>
-          {t.origin !== 'example' && <button type="button" disabled={!enabled} onClick={() => { if (window.confirm('Diese Vorlage löschen? Deine aktive Mission bleibt erhalten.')) run(() => setItems(deleteTemplate(t.id))) }}>Löschen</button>}
+          {t.origin !== 'example' && <button className="button-destructive" type="button" disabled={!enabled} onClick={() => { if (window.confirm('Diese Vorlage löschen? Deine aktive Mission bleibt erhalten.')) run(() => setItems(deleteTemplate(t.id))) }}>Löschen</button>}
         </div>
       </li>)}</ul>
       {!shown.length && <p>Keine Vorlagen für diese Auswahl.</p>}
