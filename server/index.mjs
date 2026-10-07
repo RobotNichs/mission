@@ -1,13 +1,13 @@
 import { createServer } from 'node:http'
-import { readFile, stat } from 'node:fs/promises'
+import { readFile, stat, realpath } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequestDiagnosis, handleLearningPlanRequest } from './learningPlanApi.mjs'
+import { createAiLimiter, productionConfig, sameOriginRequest, securityHeaders } from './production.mjs'
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url))
 const distributionRoot = resolve(projectRoot, 'dist')
 const maxRequestBytes = 16 * 1024
-const requestsPerMinute = 30
 const contentTypes = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -20,15 +20,24 @@ const contentTypes = {
 }
 
 function sendJson(response, status, body) {
+  if (response.destroyed || response.writableEnded) return
   response.writeHead(status, {
+    ...securityHeaders,
     'cache-control': 'no-store',
     'content-type': 'application/json; charset=utf-8',
     'x-content-type-options': 'nosniff',
+    ...(status === 413 ? { connection: 'close' } : {}),
   })
   response.end(JSON.stringify(body))
 }
 
 async function parseJsonBody(request) {
+  if (request.headers['content-length'] && Number(request.headers['content-length']) > maxRequestBytes) {
+    const error = new Error('body_too_large'); error.status = 413; throw error
+  }
+  if (request.headers['content-encoding'] && request.headers['content-encoding'] !== 'identity') {
+    const error = new Error('content_type'); error.status = 415; throw error
+  }
   if (!request.headers['content-type']?.toLowerCase().includes('application/json')) {
     const error = new Error('content_type')
     error.status = 415
@@ -37,9 +46,10 @@ async function parseJsonBody(request) {
 
   const chunks = []
   let size = 0
-  for await (const chunk of request) {
+  for await (const chunk of (request.iterator ? request.iterator({ destroyOnReturn: false }) : request)) {
     size += chunk.length
     if (size > maxRequestBytes) {
+      request.resume?.()
       const error = new Error('body_too_large')
       error.status = 413
       throw error
@@ -56,27 +66,35 @@ async function parseJsonBody(request) {
   }
 }
 
-export function createApiMiddleware(handleRequest = handleLearningPlanRequest) {
-  const requestWindows = new Map()
+export function createApiMiddleware(handleRequest = handleLearningPlanRequest, { env = process.env } = {}) {
+  const limit = createAiLimiter()
+  let activeRequests = 0
   return async (request, response, next) => {
     let pathname
     try {
-      pathname = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`).pathname
+      pathname = new URL(request.url ?? '/', 'http://mission.invalid').pathname
     } catch {
       return sendJson(response, 400, { error: { code: 'invalid_url', message: 'Die Anfrage ist ungültig.' } })
     }
-    if (pathname !== '/api/learning-plan') return next()
+    if (pathname === '/api/health') {
+      if (request.method !== 'GET' && request.method !== 'HEAD') return sendJson(response, 405, { error: { code: 'method_not_allowed', message: 'Dieser Endpunkt akzeptiert GET.' } })
+      return sendJson(response, 200, { status: 'ok', aiConfigured: (env.AI_PROVIDER ?? 'mock') === 'mock' || (env.AI_PROVIDER === 'groq' && Boolean(env.GROQ_API_KEY && env.GROQ_MODEL)) })
+    }
+    if (pathname !== '/api/learning-plan') {
+      if (pathname.startsWith('/api/')) return sendJson(response, 404, { error: { code: 'not_found', message: 'API-Endpunkt nicht gefunden.' } })
+      return next()
+    }
     const diagnosis = createRequestDiagnosis()
-    const now = Date.now()
     const clientAddress = request.socket?.remoteAddress ?? 'local'
-    const windowStart = requestWindows.get(clientAddress)
-    if (!windowStart || now - windowStart.startedAt >= 60_000) {
-      requestWindows.set(clientAddress, { startedAt: now, count: 1 })
-    } else if (windowStart.count >= requestsPerMinute) {
+    const retryAfter = limit(clientAddress)
+    if (retryAfter || activeRequests >= 4) {
+      response.setHeader?.('retry-after', String(retryAfter || 1))
       const result = diagnosis.failure(429, 'rate_limited', 'rate_limited')
       return sendJson(response, result.status, result.body)
-    } else {
-      windowStart.count += 1
+    }
+    if (env.NODE_ENV === 'production' && !sameOriginRequest(request, env)) {
+      const result = diagnosis.failure(403, 'invalid_request', 'invalid_request')
+      return sendJson(response, result.status, result.body)
     }
     if (request.method !== 'POST') {
       response.setHeader('allow', 'POST')
@@ -94,12 +112,22 @@ export function createApiMiddleware(handleRequest = handleLearningPlanRequest) {
         : diagnosis.failure(500, 'internal_error', 'internal_error')
       return sendJson(response, result.status, result.body)
     }
+    const controller = new AbortController()
+    const disconnected = () => { if (!response.writableEnded) controller.abort() }
+    request.on?.('aborted', disconnected)
+    response.on?.('close', disconnected)
+    if (request.aborted || response.destroyed) controller.abort()
+    activeRequests++
     try {
-      const result = await handleRequest(payload, { diagnosis })
+      const result = await handleRequest(payload, { diagnosis, signal: controller.signal, env })
       return sendJson(response, result.status, result.body)
     } catch {
       const result = diagnosis.failure(500, 'internal_error', 'internal_error')
       return sendJson(response, result.status, result.body)
+    } finally {
+      activeRequests--
+      request.off?.('aborted', disconnected)
+      response.off?.('close', disconnected)
     }
   }
 }
@@ -117,8 +145,8 @@ export function apiPlugin() {
   }
 }
 
-async function serveStatic(request, response) {
-  const pathname = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`).pathname
+export async function serveStatic(request, response, root = distributionRoot) {
+  const pathname = new URL(request.url ?? '/', 'http://mission.invalid').pathname
   let requestedPath
   try {
     requestedPath = decodeURIComponent(pathname === '/' ? '/index.html' : pathname)
@@ -126,43 +154,59 @@ async function serveStatic(request, response) {
     response.writeHead(400).end('Ungültige Adresse')
     return
   }
-  const filePath = resolve(distributionRoot, `.${requestedPath}`)
-  if (filePath !== distributionRoot && !filePath.startsWith(`${distributionRoot}${sep}`)) {
+  const allowed = ['/index.html', '/sw.js', '/manifest.webmanifest'].includes(requestedPath)
+    || /^\/(assets|icons)\/[a-zA-Z0-9_-][a-zA-Z0-9._-]*\.(js|css|png|svg|ico|woff|woff2)$/.test(requestedPath)
+  if (!allowed || requestedPath.includes('\\') || requestedPath.split('/').some(part => part.startsWith('.'))) {
+    response.writeHead(404).end('Datei nicht gefunden'); return
+  }
+  const filePath = resolve(root, `.${requestedPath}`)
+  if (!filePath.startsWith(`${resolve(root)}${sep}`)) {
     response.writeHead(403).end('Verboten')
     return
   }
 
   try {
+    const actualRoot = await realpath(root), actualFile = await realpath(filePath)
+    if (!actualFile.startsWith(`${actualRoot}${sep}`)) throw new Error('outside_root')
     const fileInfo = await stat(filePath)
     if (!fileInfo.isFile()) throw new Error('not_a_file')
     const content = await readFile(filePath)
     response.writeHead(200, {
-      'cache-control': extname(filePath) === '.html' || filePath === resolve(distributionRoot, 'sw.js') || extname(filePath) === '.webmanifest' || filePath.startsWith(`${resolve(distributionRoot, 'icons')}${sep}`)
+      'cache-control': extname(filePath) === '.html' || filePath === resolve(root, 'sw.js') || extname(filePath) === '.webmanifest' || filePath.startsWith(`${resolve(root, 'icons')}${sep}`)
         ? 'no-cache' : 'public, max-age=31536000, immutable',
       'content-type': contentTypes[extname(filePath)] ?? 'application/octet-stream',
       'x-content-type-options': 'nosniff',
     })
-    response.end(content)
+    response.end(request.method === 'HEAD' ? undefined : content)
   } catch {
     response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('Datei nicht gefunden')
   }
 }
 
-function startProductionServer() {
-  const apiMiddleware = createApiMiddleware()
+export function createProductionServer({ env = process.env, handleRequest = handleLearningPlanRequest, root = distributionRoot } = {}) {
+  const apiMiddleware = createApiMiddleware(handleRequest, { env })
   const server = createServer((request, response) => {
-    apiMiddleware(request, response, () => {
+    for (const [key, value] of Object.entries(securityHeaders)) response.setHeader(key, value)
+    void apiMiddleware(request, response, () => {
       if (request.method !== 'GET' && request.method !== 'HEAD') {
         response.writeHead(405, { allow: 'GET, HEAD' }).end()
         return
       }
-      serveStatic(request, response)
-    })
+      void serveStatic(request, response, root)
+    }).catch(() => sendJson(response, 500, { error: { code: 'internal_error', message: 'Die Anfrage konnte nicht verarbeitet werden.' } }))
   })
-  const port = Number(process.env.PORT ?? 3000)
-  server.listen(port, process.env.HOST ?? '127.0.0.1', () => {
-    console.log(`Mission läuft auf http://localhost:${port} (KI-Modus: ${process.env.AI_PROVIDER ?? 'mock'})`)
-  })
+  server.requestTimeout = 15000; server.headersTimeout = 10000; server.keepAliveTimeout = 5000
+  server.setTimeout(30000, socket => socket.destroy())
+  return server
+}
+function startProductionServer() {
+  process.env.NODE_ENV ??= 'production'
+  try {
+    const { port, host } = productionConfig()
+    const server = createProductionServer()
+    server.on('error', () => { console.error('Mission konnte nicht gestartet werden. Prüfe Port und Host-Konfiguration.'); process.exitCode = 1 })
+    server.listen(port, host, () => console.log(`Mission-Server gestartet (Port ${port}).`))
+  } catch { console.error('Ungültige Produktionskonfiguration. Prüfe PORT und PUBLIC_ORIGIN.'); process.exitCode = 1 }
 }
 
 try {

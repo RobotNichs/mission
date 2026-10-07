@@ -74,8 +74,13 @@ function createMockDraft(input) {
   return { clarifyingQuestion, steps }
 }
 
-async function requestGroqDraft(input, env, fetchImpl) {
+async function requestGroqDraft(input, env, fetchImpl, signal) {
+  if (signal?.aborted) throw new ProviderFailure('client_disconnected')
   const controller = new AbortController()
+  let rejectDisconnect
+  const connectionEnded = new Promise((_, reject) => { rejectDisconnect = reject })
+  const cancel = () => { controller.abort(); rejectDisconnect(new ProviderFailure('client_disconnected')) }
+  signal?.addEventListener('abort', cancel, { once: true })
   let timeout
   const expired = new Promise((_, reject) => {
     timeout = setTimeout(() => {
@@ -83,7 +88,7 @@ async function requestGroqDraft(input, env, fetchImpl) {
       reject(new ProviderFailure('provider_timeout'))
     }, 20_000)
   })
-  const withinDeadline = (operation) => Promise.race([operation, expired])
+  const withinDeadline = (operation) => Promise.race([operation, expired, connectionEnded])
   try {
     const response = await withinDeadline(fetchImpl('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -130,6 +135,7 @@ async function requestGroqDraft(input, env, fetchImpl) {
     try { return JSON.parse(content) } catch { throw new ProviderFailure('invalid_json') }
   } finally {
     clearTimeout(timeout)
+    signal?.removeEventListener('abort', cancel)
   }
 }
 
@@ -195,7 +201,7 @@ export async function handleLearningPlanRequest(payload, options = {}) {
         return diagnosis.failure(503, 'provider_not_configured', 'provider_not_configured')
       }
       try {
-        draft = await requestGroqDraft(payload, env, fetchImpl)
+        draft = await requestGroqDraft(payload, env, fetchImpl, options.signal)
       } catch (error) {
         if (!(error instanceof ProviderFailure)) throw error
         return diagnosis.failure(502, 'provider_unavailable', error.category, undefined, error.upstreamStatus)
