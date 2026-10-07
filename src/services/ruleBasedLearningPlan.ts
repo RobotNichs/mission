@@ -1,3 +1,4 @@
+import { projectSessionActions, projectSource, projectSessionDescription } from '../../shared/projectMissionContext.mjs'
 import { createLearningPlanId, type LearningPlan, type LearningPlanRequest, type LearningStepKind } from '../types/learningPlan'
 import { hasNoMaterials, personalizeContextAction, readLearningContext } from '../../shared/learningContext.mjs'
 
@@ -15,6 +16,13 @@ export function allocateFallbackMinutes(budget: number, weights: number[]): numb
 
 export function generateRuleBasedLearningPlan(input: LearningPlanRequest): LearningPlan {
   const id = createLearningPlanId()
+  if (input.projectContext) {
+    const actions=projectSessionActions(input), minutes=allocateFallbackMinutes(input.timeBudgetMinutes,actions.map((_,i)=>i===1 ? 5 : 1))
+    return {id,goal:input.goal,timeBudgetMinutes:input.timeBudgetMinutes,energyLevel:input.energyLevel,learningBlocker:input.learningBlocker,
+      sourceProject:projectSource(input.projectContext),learningContext:readLearningContext(input.learningContext),
+      ...(input.learningBlockerDetails !== undefined ? {learningBlockerDetails:input.learningBlockerDetails} : {}),
+      steps:actions.map((a,i)=>({...a,id:id+'-step-'+(i+1),minutes:minutes[i],done:false,description:projectSessionDescription(a.description,input,i,a.kind,i===actions.length-1)}))}
+  }
   const none = hasNoMaterials(input)
   const topic = input.goal.trim().replace(/[.!?]+$/, '')
   const shortTopic = topic.length > 44 ? `${topic.slice(0, 41)}…` : topic

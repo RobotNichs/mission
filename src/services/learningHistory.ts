@@ -1,3 +1,4 @@
+import { readSourceProject, type SourceProject } from '../../shared/sourceProject.mjs'
 import { readFocusStrategy, validFocusStrategy, type FocusStrategy } from './focusBlocks'
 export type SessionHistoryEntry = {
   id: string
@@ -10,6 +11,7 @@ export type SessionHistoryEntry = {
   completedSteps: number
   totalSteps: number
   status: 'completed' | 'ended_early'
+  sourceProject?: SourceProject
   focusStrategy?: FocusStrategy
   completedFocusBlocks?: number
   breakSeconds?: number
@@ -36,6 +38,7 @@ function validBase(value: unknown): boolean {
 // Reconstruct whitelisted fields; never retain arbitrary stored payloads.
 function base(value: Record<string, unknown>) {
   return {
+    ...(readSourceProject(value.sourceProject) ? {sourceProject:readSourceProject(value.sourceProject)} : {}),
     id: value.id as string, startedAt: value.startedAt as string, goal: value.goal as string,
     focusSeconds: value.focusSeconds as number, plannedSeconds: value.plannedSeconds as number | null,
     timeMode: value.timeMode as SessionHistoryEntry['timeMode'],

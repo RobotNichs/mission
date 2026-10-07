@@ -1,3 +1,5 @@
+import { validateSourceProject, readSourceProject } from './sourceProject.mjs'
+import { validateProjectMissionContext, projectSource, unnecessaryKnownTopic } from './projectMissionContext.mjs'
 import { readLearningContext, validateLearningContext, unavailableMaterialStep } from './learningContext.mjs'
 const energies = new Set(['low', 'medium', 'high'])
 const blockers = new Set(['starting', 'understanding', 'focus', 'time', 'other'])
@@ -97,7 +99,8 @@ function diagnosePlanTopic(steps, context) {
 
 export function validatePlanInput(value) {
   return isRecord(value)
-    && Object.keys(value).every((key) => ['goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'learningBlockerDetails', 'clarification', 'learningContext'].includes(key))
+    && Object.keys(value).every((key) => ['goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'learningBlockerDetails', 'clarification', 'learningContext', 'projectContext'].includes(key))
+    && (value.projectContext === undefined || (validateProjectMissionContext(value.projectContext) && value.goal === value.projectContext.goal && JSON.stringify(readLearningContext(value.learningContext)) === JSON.stringify(readLearningContext(value.projectContext.learningContext))))
     && (value.learningContext === undefined || validateLearningContext(value.learningContext))
     && (value.learningBlockerDetails === undefined || (value.learningBlocker === 'other' && typeof value.learningBlockerDetails === 'string' && value.learningBlockerDetails.length <= 240))
     && typeof value.goal === 'string'
@@ -128,7 +131,7 @@ export function diagnoseAiPlanDraftDetails(value, input) {
   }
   if (!hasExactKeys(value, ['clarifyingQuestion', 'steps'])) { add('invalid_response_structure'); return errors }
   if (!validQuestion(value.clarifyingQuestion)) add('invalid_question', 'clarifyingQuestion')
-  if (input.clarification && value.clarifyingQuestion !== null) add('followup_question_forbidden', 'clarifyingQuestion')
+  if ((input.clarification || input.projectContext) && value.clarifyingQuestion !== null) add('followup_question_forbidden', 'clarifyingQuestion')
   if (!Array.isArray(value.steps) || value.steps.length < 1 || value.steps.length > 12) { add('invalid_step_count', 'steps'); return errors }
   let totalMinutes = 0
   let allMinutesValid = true
@@ -154,11 +157,13 @@ export function diagnoseAiPlanDraftDetails(value, input) {
   }
   if (allTopicFieldsValid) {
     const topicContext = input.clarification && !input.clarification.skipped ? `${input.goal} ${input.clarification.answer}` : input.goal
-    const topicError = diagnosePlanTopic(value.steps, topicContext)
+    const projectTopic = input.projectContext ? topicContext + ' ' + input.projectContext.phase.title + ' ' + input.projectContext.phase.milestones.map(m=>m.title).join(' ') : topicContext
+    const topicError = diagnosePlanTopic(value.steps, projectTopic)
     if (topicError !== null) add('topic_reference_missing', topicError < 0 ? 'steps' : undefined, topicError < 0 ? undefined : topicError)
     const materialError = unavailableMaterialStep(value.steps, input)
     if (materialError >= 0) add('material_reference_unavailable', 'description', materialError)
   }
+  if (allMinutesValid && allTopicFieldsValid && unnecessaryKnownTopic(value.steps,input) >= 0) add('known_topic_replanned','title',unnecessaryKnownTopic(value.steps,input))
   if (allMinutesValid && totalMinutes !== input.timeBudgetMinutes) add('minutes_total_mismatch', 'minutes')
   if (allKindsValid && !hasLearningActivity) add('learning_activity_missing', 'kind')
   return errors
@@ -188,10 +193,12 @@ export function validateAiPlanDraft(value, input) {
 export function validateLearningPlanResponse(value, input) {
   if (!hasExactKeys(value, ['source', 'clarifyingQuestion', 'plan'])) return false
   if (!validSources.has(value.source) || !validQuestion(value.clarifyingQuestion) || !isRecord(value.plan)) return false
-  if (input.clarification && value.clarifyingQuestion !== null) return false
+  if ((input.clarification || input.projectContext) && value.clarifyingQuestion !== null) return false
 
   const plan = value.plan
-  if (!hasExactKeys(plan, ['id', 'goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'steps', ...(Object.hasOwn(plan, 'learningContext') ? ['learningContext'] : [])])) return false
+  if (!hasExactKeys(plan, ['id', 'goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'steps', ...(Object.hasOwn(plan, 'learningContext') ? ['learningContext'] : []), ...(Object.hasOwn(plan,'sourceProject') ? ['sourceProject'] : [])])) return false
+  if (plan.sourceProject !== undefined && !validateSourceProject(plan.sourceProject)) return false
+  if (JSON.stringify(readSourceProject(plan.sourceProject)) !== JSON.stringify(input.projectContext ? projectSource(input.projectContext) : undefined)) return false
   if (plan.learningContext !== undefined && !validateLearningContext(plan.learningContext)) return false
   if (JSON.stringify(readLearningContext(plan.learningContext)) !== JSON.stringify(readLearningContext(input.learningContext))) return false
   if (typeof plan.id !== 'string' || plan.id.trim().length === 0) return false
@@ -218,5 +225,5 @@ export function validateLearningPlanResponse(value, input) {
     totalMinutes += step.minutes
   }
 
-  return totalMinutes === input.timeBudgetMinutes && hasLearningActivity && unavailableMaterialStep(plan.steps, input) < 0
+  return totalMinutes === input.timeBudgetMinutes && hasLearningActivity && unnecessaryKnownTopic(plan.steps,input) < 0 && unavailableMaterialStep(plan.steps, input) < 0
 }

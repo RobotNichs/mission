@@ -50,8 +50,9 @@ export function readRoadmap(v) {
     let expectedDuration
     if(p.expectedDuration !== undefined) { const d=object(p.expectedDuration,['type','value']); if(!['days','weeks'].includes(d.type)) fail(); expectedDuration={type:d.type,value:integer(d.value,1,3650)} }
     return {id:id(p.id),title:text(p.title,90),description:text(p.description,300,true),order:i,...(expectedDuration ? {expectedDuration} : {}), milestones:p.milestones.map((v,j)=>{
-      const m=object(v,['id','title','description','order']); if(m.order !== j) fail()
-      return {id:id(m.id),title:text(m.title,90),...(m.description !== undefined ? {description:text(m.description,200,true)} : {}),order:j}
+      const m=object(v,['id','title','description','order','status']); if(m.order !== j) fail()
+      if (m.status !== undefined && !['pending','completed'].includes(m.status)) fail()
+      return {...(m.status !== undefined ? {status:m.status} : {}),id:id(m.id),title:text(m.title,90),...(m.description !== undefined ? {description:text(m.description,200,true)} : {}),order:j}
     })}
   })
   return {version:1,summary:text(r.summary,400),phases}

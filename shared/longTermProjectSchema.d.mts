@@ -5,7 +5,7 @@ export type ProjectInput = {
  duration: {type:'fixed-days';days:number} | {type:'date';targetDate:string} | {type:'open-ended'}
  weeklyMinutes:number; daysPerWeek:number | null; learningContext:LearningContext
 }
-export type Milestone = {id:string;title:string;description?:string;order:number}
+export type Milestone = {id:string;title:string;description?:string;order:number;status?:'pending'|'completed'}
 export type RoadmapPhase = {id:string;title:string;description:string;order:number;expectedDuration?:{type:'days'|'weeks';value:number};milestones:Milestone[]}
 export type LongTermRoadmap = {version:1;summary:string;phases:RoadmapPhase[]}
 export type LongTermProject = ProjectInput & {version:1;id:string;createdAt:string;updatedAt:string;status:'active'|'paused'|'completed'|'archived';roadmap:LongTermRoadmap;manualNotes:string}

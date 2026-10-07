@@ -1,3 +1,6 @@
+import { readSourceProject } from '../shared/sourceProject.mjs'
+import { loadProjects } from './services/longTermProjects'
+import { projectMissionRequest, assertCurrentProjectContext, type ProjectSessionInput } from './services/projectMission'
 import LongTermProjects from './components/LongTermProjects'
 import { getEquippedOrb } from './services/prestigeOrbs'
 import LearningHistory from './components/LearningHistory'
@@ -167,6 +170,7 @@ function normalizePlan(value: unknown): LearningPlan | null {
     learningBlocker: learningBlocker as LearningBlocker | null,
     steps,
     timeMode: value.timeMode === 'automatic' || value.timeMode === 'stopwatch' ? value.timeMode : 'manual',
+    ...(readSourceProject(value.sourceProject) ? {sourceProject:readSourceProject(value.sourceProject)} : {}),
     ...(value.focusStrategy !== undefined ? { focusStrategy: readFocusStrategy(value.focusStrategy) } : {}),
     ...(typeof value.learningBlockerDetails === 'string' && value.learningBlockerDetails.length <= 240 ? { learningBlockerDetails: value.learningBlockerDetails } : {}),
     ...(readLearningContext(value.learningContext) !== undefined ? { learningContext: readLearningContext(value.learningContext) } : {}),
@@ -479,7 +483,7 @@ function App() {
     return () => window.clearInterval(interval)
   }, [isRunning])
 
-  async function generateAndApplyPlan(input: LearningPlanRequest) {
+  async function generateAndApplyPlan(input: LearningPlanRequest, projectStrategy?: LearningPlan['focusStrategy']) {
     const generation = await generateLearningPlanWithStatus(input)
     setGenerationNotice(generation.notice)
 
@@ -499,14 +503,17 @@ function App() {
       return
     }
 
-    if (!writer.current) return
-    if (session.current && !window.confirm('Laufende Session pausieren und Lernplan ersetzen? Verdiente Fokuszeit bleibt erhalten.')) return
+    if (!writer.current) return false
+    if (input.projectContext) assertCurrentProjectContext(input.projectContext)
+    const projectBoundary = Boolean(input.projectContext || mission?.sourceProject)
+    if ((projectBoundary ? appSnapshot.current.activeSession : session.current) && !window.confirm(projectBoundary ? 'Aktuelle Session beenden und durch einen neuen Lernplan ersetzen? Verdiente Fokuszeit und Historie bleiben erhalten.' : 'Laufende Session pausieren und Lernplan ersetzen? Verdiente Fokuszeit bleibt erhalten.')) return
     stopTimer()
+    if (projectBoundary) finalizeSession('ended_early')
     updateBlocks(null)
     setElapsedSeconds(0)
     updateBlocks(null)
     setTemplateOrigin(generation.source === 'groq' ? 'ai' : 'custom')
-    const sameMission = mission?.goal.trim() === input.goal.trim()
+    const sameMission = !projectBoundary && mission?.goal.trim() === input.goal.trim()
     const reconciledSteps = preserveStepProgress(
       generation.plan.steps,
       mission?.steps ?? [],
@@ -516,6 +523,7 @@ function App() {
     )
     setMission({
       ...generation.plan,
+      ...(input.projectContext && projectStrategy ? {focusStrategy:projectStrategy} : {}),
       ...(input.learningBlockerDetails !== undefined ? { learningBlockerDetails: input.learningBlockerDetails } : {}),
       id: sameMission && mission ? mission.id : generation.plan.id,
       steps: reconciledSteps,
@@ -525,6 +533,16 @@ function App() {
     setIsFocusMode(false)
     setPendingClarification(null)
     setClarificationAnswer('')
+    if(input.projectContext) {setEditingPlan(null);setShowMissionCompletion(false);if(isMobile)setMobileArea('plan')}
+    return true
+  }
+
+  async function createProjectMission(projectId:string,input:ProjectSessionInput) {
+    if(!writer.current || isGenerating || pendingClarification)return false
+    const request=projectMissionRequest(projectId,input)
+    setIsGenerating(true)
+    try {return Boolean(await generateAndApplyPlan(request,input.focusStrategy))}
+    finally {setIsGenerating(false)}
   }
 
   async function createMission(event: React.FormEvent<HTMLFormElement>) {
@@ -640,6 +658,7 @@ function App() {
       const currentPlan = appSnapshot.current.mission
       appSnapshot.current = { ...appSnapshot.current, activeSession: {
         id: crypto.randomUUID(), startedAt: new Date().toISOString(),
+        ...(readSourceProject(currentPlan?.sourceProject) ? {sourceProject:readSourceProject(currentPlan?.sourceProject)} : {}),
         missionId: currentPlan?.id ?? null, goal: currentPlan?.goal ?? 'Freie Fokuszeit', focusSeconds: 0,
         plannedSeconds: currentPlan?.timeMode === 'stopwatch' ? null : (currentPlan?.timeBudgetMinutes ?? 25) * 60,
         timeMode: currentPlan?.timeMode ?? 'manual',
@@ -916,6 +935,7 @@ function App() {
                 <div className="summary-copy">
                   <span className="summary-label">DEIN LERNZIEL</span>
                   <p>{mission.goal}</p>
+                  {mission.sourceProject && <span className="summary-label">Projekt: {loadProjects().projects.find(p=>p.id===mission.sourceProject?.projectId)?.title ?? 'Nicht mehr vorhanden'}</span>}
                   {mission.learningBlocker && (
                     <span className="summary-label">
                       {learningBlockerOptions.find((option) => option.value === mission.learningBlocker)?.label}
@@ -1015,7 +1035,7 @@ function App() {
       <LearningStatistics active={isMobile && mobileArea === 'progress'} statistics={statistics} total={gamification.totalFocusMilliseconds} canWrite={canWrite} onGoals={changeGoals} />
       </div>
       <div hidden={hideMobile('library')}>
-      <LongTermProjects enabled={canWrite && !isGenerating && !tourOpen && !infoOpen} onBusy={setProjectBusy} />
+      <LongTermProjects enabled={canWrite && !isGenerating && !pendingClarification && !tourOpen && !infoOpen} onBusy={setProjectBusy} onMission={createProjectMission} />
       <MissionLibrary active={isMobile && mobileArea === 'library'} saveRequest={templateSaveRequest} suggestedOrigin={templateOrigin} onDismissSave={() => setTemplateSaveRequest(null)}
         enabled={canWrite && !isGenerating && pendingClarification === null && !tourOpen} sessionActive={hasActiveSession}
         onUse={plan => {

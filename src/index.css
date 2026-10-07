@@ -995,3 +995,6 @@ button:disabled { cursor: not-allowed; }
 .project-phases > li { margin: 1.2rem 0; }
 .project-notes { white-space: pre-wrap; }
 @media (max-width: 600px) { .project-detail dl { grid-template-columns: 1fr; } .project-detail dd { margin-bottom: .5rem; } .project-actions button { flex: 1 1 130px; } }
+
+.project-milestone-status { display: flex; align-items: center; gap: .5rem; margin: .5rem 0; }
+.project-milestone-status input { width: auto; flex: 0 0 auto; }

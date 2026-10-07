@@ -1,3 +1,5 @@
+import ProjectSessionForm from './ProjectSessionForm'
+import { currentProjectContext, type ProjectSessionInput } from '../services/projectMission'
 import { useEffect, useRef, useState } from 'react'
 import LearningContextFields from './LearningContextFields'
 import { environmentOptions, purposeOptions, materialOptions } from '../../shared/learningContext.mjs'
@@ -7,9 +9,10 @@ const levels = [['beginner','Anfänger'],['basic','Grundkenntnisse'],['advanced'
 const statuses = [['active','Aktiv'],['paused','Pausiert'],['completed','Abgeschlossen'],['archived','Archiviert']] as const
 const emptyInput:ProjectInput={title:'',goal:'',startingLevel:{type:'beginner'},duration:{type:'fixed-days',days:30},weeklyMinutes:120,daysPerWeek:null,learningContext:{}}
 function durationLabel(d:ProjectInput['duration']) {return d.type === 'fixed-days' ? d.days+' Tage' : d.type === 'date' ? 'Bis '+d.targetDate : 'Ohne Enddatum'}
-export default function LongTermProjects({enabled,onBusy}:{enabled:boolean;onBusy?:(busy:boolean)=>void}) {
+export default function LongTermProjects({enabled,onBusy,onMission}:{enabled:boolean;onBusy?:(busy:boolean)=>void;onMission?:(projectId:string,input:ProjectSessionInput)=>Promise<boolean>}) {
  const [loaded]=useState(()=>loadProjects())
  const [projects,setProjects]=useState<LongTermProject[]>(loaded.projects)
+ const [dailyProject,setDailyProject]=useState<string|null>(null)
  const [selected,setSelected]=useState<string|null>(null)
  const [draft,setDraft]=useState<ProjectInput>(structuredClone(emptyInput))
  const [editing,setEditing]=useState<LongTermProject|null>(null)
@@ -22,8 +25,8 @@ export default function LongTermProjects({enabled,onBusy}:{enabled:boolean;onBus
  const current=projects.find(p=>p.id===selected)
  const disabled=!enabled || busy || loaded.damaged
  function patch(p:Partial<ProjectInput>) {setDraft(d=>({...d,...p}))}
- function start() {setEditing(null);setSelected(null);setDraft(structuredClone(emptyInput));setStep(0);setNotice('')}
- function edit(p:LongTermProject) {setEditing(structuredClone(p));setDraft({title:p.title,goal:p.goal,startingLevel:structuredClone(p.startingLevel),duration:structuredClone(p.duration),weeklyMinutes:p.weeklyMinutes,daysPerWeek:p.daysPerWeek,learningContext:structuredClone(p.learningContext)});setStep(0);setNotice('')}
+ function start() {setDailyProject(null);setEditing(null);setSelected(null);setDraft(structuredClone(emptyInput));setStep(0);setNotice('')}
+ function edit(p:LongTermProject) {setDailyProject(null);setEditing(structuredClone(p));setDraft({title:p.title,goal:p.goal,startingLevel:structuredClone(p.startingLevel),duration:structuredClone(p.duration),weeklyMinutes:p.weeklyMinutes,daysPerWeek:p.daysPerWeek,learningContext:structuredClone(p.learningContext)});setStep(0);setNotice('')}
  function store(p:LongTermProject) {
   if(!available.current) return
   try {setProjects(saveProject(p));setSelected(p.id);setStep(null);setEditing(null);setNotice('Projekt lokal gespeichert.')} catch(e) {setNotice(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.')}
@@ -53,11 +56,16 @@ export default function LongTermProjects({enabled,onBusy}:{enabled:boolean;onBus
    {step===null && <button type="button" className="primary-button" disabled={disabled || projects.length>=MAX_PROJECTS} onClick={start}>Langzeitprojekt erstellen</button>}
   </header>
   {notice && <p role={enabled ? "status" : undefined}>{notice}</p>}
-  {step===null && <><ul className="project-list">{projects.map(p=><li key={p.id}><button type="button" className="focus-leave" aria-pressed={selected===p.id} onClick={()=>setSelected(p.id)}>{p.title} · {statuses.find(([s])=>s===p.status)?.[1]}</button></li>)}</ul>
+  {step===null && dailyProject && onMission && <ProjectSessionForm enabled={!disabled} onCancel={()=>setDailyProject(null)} onCreate={async input=>{const used=await onMission(dailyProject,input);if(used)setDailyProject(null);return used}}/>}
+  {step===null && !dailyProject && <><ul className="project-list">{projects.map(p=><li key={p.id}><button type="button" className="focus-leave" aria-pressed={selected===p.id} onClick={()=>setSelected(p.id)}>{p.title} · {statuses.find(([s])=>s===p.status)?.[1]}</button></li>)}</ul>
    {current && <article className="project-detail"><h3>{current.title}</h3><p>{current.goal}</p><dl><dt>Ausgangslage</dt><dd>{levels.find(([s])=>s===current.startingLevel.type)?.[1]} {current.startingLevel.description}</dd>{current.startingLevel.priorKnowledge && <><dt>Was du schon kannst</dt><dd>{current.startingLevel.priorKnowledge}</dd></>}<dt>Zeithorizont</dt><dd>{durationLabel(current.duration)}</dd><dt>Wochenzeit</dt><dd>{current.weeklyMinutes} Minuten</dd><dt>Lerntage (ungefähr)</dt><dd>{current.daysPerWeek ?? 'Keine Angabe'}</dd><dt>Lernkontext</dt><dd>{[environmentOptions.find(([k])=>k===current.learningContext.environment)?.[1],purposeOptions.find(([k])=>k===current.learningContext.purpose)?.[1],...(current.learningContext.materials ?? []).map(k=>materialOptions.find(([id])=>id===k)?.[1]),current.learningContext.materialsDetails].filter(Boolean).join(' · ') || 'Keine Angabe'}</dd></dl>
     <button type="button" className="focus-leave" disabled={disabled} onClick={()=>edit(current)}>Projekt bearbeiten</button>
+    {onMission && current.status==='active' && <button type="button" className="primary-button" disabled={disabled} onClick={()=>{try{currentProjectContext(current.id);setDailyProject(current.id);setNotice('')}catch(e){setNotice(e instanceof Error ? e.message : 'Projekt nicht verfügbar.')}}}>Heutige Mission erstellen</button>}
     <p>Roadmap-Vorschlag · Zeitrahmen sind keine Aussage über deinen Lernfortschritt.</p><p>{current.roadmap.summary}</p>
-    <ol className="project-phases">{current.roadmap.phases.map(p=><li key={p.id}><h4>{p.title}</h4>{p.expectedDuration && <p className="field-hint">Ungefähr {p.expectedDuration.value} {p.expectedDuration.type==='days' ? 'Tage' : 'Wochen'}</p>}<p>{p.description}</p><ul>{p.milestones.map(m=><li key={m.id}><strong>{m.title}</strong>{m.description && <p>{m.description}</p>}</li>)}</ul></li>)}</ol>
+    <ol className="project-phases">{current.roadmap.phases.map(p=><li key={p.id}><h4>{p.title}</h4>{p.expectedDuration && <p className="field-hint">Ungefähr {p.expectedDuration.value} {p.expectedDuration.type==='days' ? 'Tage' : 'Wochen'}</p>}<p>{p.description}</p><ul>{p.milestones.map(m=><li key={m.id}><strong>{m.title}</strong><label className="project-milestone-status"><input type="checkbox" disabled={disabled} checked={m.status==='completed'} aria-label={'Meilenstein erledigt: '+m.title} onChange={e=>{
+      if(disabled)return
+      try {const latest=loadProjects();if(latest.damaged)throw new Error('Der Projektspeicher ist beschädigt.');const project=latest.projects.find(v=>v.id===current.id);if(!project)throw new Error('Das Projekt ist nicht mehr vorhanden.');setProjects(saveProject({...project,updatedAt:new Date().toISOString(),roadmap:{...project.roadmap,phases:project.roadmap.phases.map(v=>v.id===p.id ? {...v,milestones:v.milestones.map(w=>w.id===m.id ? {...w,status:e.target.checked ? 'completed' as const : 'pending' as const} : w)} : v)}}));setNotice('Meilensteinstatus lokal gespeichert.')}catch(e){setNotice(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.')}
+     }}/>{m.status==='completed' ? 'Erledigt' : 'Offen'}</label>{m.description && <p>{m.description}</p>}</li>)}</ul></li>)}</ol>
     {current.manualNotes && <><h4>Eigene Notizen</h4><p className="project-notes">{current.manualNotes}</p></>}
    </article>}
   </>}

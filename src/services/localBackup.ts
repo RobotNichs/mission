@@ -1,3 +1,4 @@
+import { validateSourceProject } from '../../shared/sourceProject.mjs'
 import { PROJECT_STORAGE_KEY, readProjectStore } from '../../shared/longTermProjectSchema.mjs'
 import { initialGamificationState } from '../types/gamification'
 import { loadTemplates } from './missionTemplates'
@@ -24,11 +25,12 @@ function text(v: unknown, max = 600) { if (typeof v !== 'string' || v.length > m
 function strings(v: unknown) { if (!Array.isArray(v) || v.length > 20000) fail(); v.forEach(s => text(s, 240)); if (new Set(v).size !== v.length) fail() }
 function choice(v: unknown, list: unknown[]) { if (!list.includes(v)) fail() }
 function context(r: Record<string, unknown>) {
+  if (r.sourceProject !== undefined && !validateSourceProject(r.sourceProject)) fail()
   if (r.learningContext !== undefined && !validateLearningContext(r.learningContext)) fail()
   if (r.focusStrategy !== undefined && !validFocusStrategy(r.focusStrategy)) fail()
 }
 function plan(v: unknown, form = false) {
-  const r = fields(v, ['goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'learningBlockerDetails', 'learningContext', ...(form ? [] : ['id', 'steps', 'timeMode', 'focusStrategy'])])
+  const r = fields(v, ['goal', 'timeBudgetMinutes', 'energyLevel', 'learningBlocker', 'learningBlockerDetails', 'learningContext', ...(form ? [] : ['id', 'steps', 'timeMode', 'focusStrategy', 'sourceProject'])])
   text(r.goal, 280); number(r.timeBudgetMinutes, 10080)
   choice(r.energyLevel, ['low', 'medium', 'high']); choice(r.learningBlocker, [null, ...learningBlockerOptions.map(o => o.value)])
   if (r.learningBlockerDetails !== undefined) text(r.learningBlockerDetails, 240)
@@ -41,7 +43,7 @@ function plan(v: unknown, form = false) {
   }
   return r
 }
-const sessionFields = ['id', 'startedAt', 'goal', 'focusSeconds', 'plannedSeconds', 'timeMode', 'completedSteps', 'totalSteps', 'focusStrategy', 'completedFocusBlocks', 'breakSeconds']
+const sessionFields = ['id', 'startedAt', 'goal', 'focusSeconds', 'plannedSeconds', 'timeMode', 'completedSteps', 'totalSteps', 'focusStrategy', 'completedFocusBlocks', 'breakSeconds', 'sourceProject']
 function validateData(data: unknown): Data {
   const d = fields(data, [...BACKUP_KEYS])
   for (const [key, value] of Object.entries(d)) {

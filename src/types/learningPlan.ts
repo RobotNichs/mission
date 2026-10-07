@@ -1,3 +1,5 @@
+import type { SourceProject } from '../../shared/sourceProject.mjs'
+import type { ProjectMissionContext } from '../../shared/projectMissionContext.mjs'
 import type { LearningContext } from '../../shared/learningContext.mjs'
 import type { FocusStrategy } from '../services/focusBlocks'
 export type EnergyLevel = 'low' | 'medium' | 'high'
@@ -29,19 +31,21 @@ export type LearningPlan = {
   energyLevel: EnergyLevel
   learningBlocker: LearningBlocker | null
   steps: LearningStep[]
+  sourceProject?: SourceProject
   timeMode?: 'automatic' | 'manual' | 'stopwatch'
   learningBlockerDetails?: string
   learningContext?: LearningContext
   focusStrategy?: FocusStrategy
 }
 
-export type LearningPlanInput = Omit<LearningPlan, 'id' | 'steps' | 'timeMode' | 'focusStrategy'>
+export type LearningPlanInput = Omit<LearningPlan, 'id' | 'steps' | 'timeMode' | 'focusStrategy' | 'sourceProject'>
 export type LearningPlanClarification = {
   question: string
   answer: string
   skipped: boolean
 }
 export type LearningPlanRequest = LearningPlanInput & {
+  projectContext?: ProjectMissionContext
   clarification?: LearningPlanClarification
 }
 export type LearningPlanGenerator = (input: LearningPlanInput) => Promise<LearningPlan>
