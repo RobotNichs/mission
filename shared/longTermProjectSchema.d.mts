@@ -1,3 +1,4 @@
+import type { ProjectLearningState } from './projectLearningState.mjs'
 import type { LearningContext } from './learningContext.mjs'
 export type ProjectInput = {
  title: string; goal: string
@@ -8,7 +9,7 @@ export type ProjectInput = {
 export type Milestone = {id:string;title:string;description?:string;order:number;status?:'pending'|'completed'}
 export type RoadmapPhase = {id:string;title:string;description:string;order:number;expectedDuration?:{type:'days'|'weeks';value:number};milestones:Milestone[]}
 export type LongTermRoadmap = {version:1;summary:string;phases:RoadmapPhase[]}
-export type LongTermProject = ProjectInput & {version:1;id:string;createdAt:string;updatedAt:string;status:'active'|'paused'|'completed'|'archived';roadmap:LongTermRoadmap;manualNotes:string}
+export type LongTermProject = ProjectInput & {version:1;id:string;createdAt:string;updatedAt:string;status:'active'|'paused'|'completed'|'archived';roadmap:LongTermRoadmap;manualNotes:string;learningState?:ProjectLearningState}
 export const MAX_PROJECTS: number
 export const MAX_PHASES: number
 export const MAX_MILESTONES: number

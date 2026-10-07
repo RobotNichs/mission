@@ -1,3 +1,4 @@
+import { readLearningContextState, selectLearningContextState } from './projectLearningState.mjs'
 import { personalizeContextAction } from './learningContext.mjs'
 import { readProject, readProjectInput } from './longTermProjectSchema.mjs'
 import { validateSourceProject } from './sourceProject.mjs'
@@ -11,7 +12,7 @@ const stop=new Set('ich kann kenne bereits schon mit und oder der die das ein ei
 const tokens=s=>(s.toLocaleLowerCase('de').normalize('NFD').replace(/[\u0300-\u036f]/g,'').match(/[a-z0-9]+/g) ?? []).filter(w=>w.length>3 && !stop.has(w))
 // Deliberately lexical: free-form knowledge is not a machine-readable skill state.
 export function isKnownTopic(title,context) {
- const knowledge=(context.startingLevel.priorKnowledge ?? '').split(/[,;.!?\n]+/).filter(clause=>! /\b(nicht|keine?[nmr]?|kaum|not|never)\b/i.test(clause)).join(' ')
+ const knowledge=[context.startingLevel.priorKnowledge ?? '',...(context.learningState?.known ?? [])].join('. ').split(/[,;.!?\n]+/).filter(clause=>! /\b(nicht|keine?[nmr]?|kaum|not|never)\b/i.test(clause)).join(' ')
  const known=new Set(tokens(knowledge))
  const domain=new Set(tokens((context.goal ?? '')+' '+(context.title ?? '')))
  const topic=tokens(title), specific=topic.filter(w=>!domain.has(w))
@@ -19,7 +20,7 @@ export function isKnownTopic(title,context) {
 }
 export function projectSource(context) {return {projectId:context.projectId,phaseId:context.phase.id,milestoneIds:context.phase.milestones.map(m=>m.id)}}
 export function readProjectMissionContext(v) {
- const r=fields(v,['version','projectId','title','goal','startingLevel','duration','weeklyMinutes','daysPerWeek','learningContext','roadmapSummary','phase'])
+ const r=fields(v,['version','projectId','title','goal','startingLevel','duration','weeklyMinutes','daysPerWeek','learningContext','roadmapSummary','phase','learningState'])
  if(new TextEncoder().encode(JSON.stringify(r)).length>MAX_PROJECT_CONTEXT_BYTES || r.version!==1)fail()
  // Dates are historical planning information; not a new deadline request.
  const input=readProjectInput(Object.fromEntries(['title','goal','startingLevel','duration','weeklyMinutes','daysPerWeek','learningContext'].map(k=>[k,r[k]])),r.duration?.type==='date' && r.duration.targetDate < new Date().toISOString().slice(0,10) ? r.duration.targetDate : undefined)
@@ -27,7 +28,7 @@ export function readProjectMissionContext(v) {
  if(!Array.isArray(p.milestones) || !p.milestones.length || p.milestones.length>MAX_SESSION_MILESTONES)fail()
  const milestones=p.milestones.map(v=>{const m=fields(v,['id','title','description']);return {id:id(m.id),title:text(m.title,90),description:text(m.description,200,true)}})
  if(new Set([p.id,...milestones.map(m=>m.id)]).size!==milestones.length+1)fail()
- return {...input,version:1,projectId:id(r.projectId),roadmapSummary:text(r.roadmapSummary,240,true),phase:{id:id(p.id),title:text(p.title,90),description:text(p.description,240,true),milestones}}
+ return {...input,...(r.learningState!==undefined ? {learningState:readLearningContextState(r.learningState)} : {}),version:1,projectId:id(r.projectId),roadmapSummary:text(r.roadmapSummary,240,true),phase:{id:id(p.id),title:text(p.title,90),description:text(p.description,240,true),milestones}}
 }
 export function buildProjectMissionContext(value) {
  const p=readProject(value)
@@ -36,16 +37,27 @@ export function buildProjectMissionContext(value) {
  if(!phase)throw new Error('Alle Meilensteine sind erledigt. Öffne eine nächste Etappe, bevor du eine Tagesmission erstellst.')
  const pending=phase.milestones.filter(m=>m.status!=='completed')
  const relevant=[...pending.filter(m=>!isKnownTopic(m.title,p)),...pending.filter(m=>isKnownTopic(m.title,p))].slice(0,MAX_SESSION_MILESTONES)
- const compact={version:1,projectId:p.id,title:p.title,goal:p.goal,startingLevel:p.startingLevel,duration:p.duration,weeklyMinutes:p.weeklyMinutes,daysPerWeek:p.daysPerWeek,learningContext:p.learningContext,roadmapSummary:p.roadmap.summary.slice(0,240),phase:{id:phase.id,title:phase.title,description:phase.description.slice(0,240),milestones:relevant.map(m=>({id:m.id,title:m.title,description:m.description ?? ''}))}}
+ const learningState=p.learningState ? selectLearningContextState(p.learningState,phase.title+' '+pending.map(m=>m.title).join(' ')) : undefined
+ const compact={...(learningState ? {learningState} : {}),version:1,projectId:p.id,title:p.title,goal:p.goal,startingLevel:p.startingLevel,duration:p.duration,weeklyMinutes:p.weeklyMinutes,daysPerWeek:p.daysPerWeek,learningContext:p.learningContext,roadmapSummary:p.roadmap.summary.slice(0,240),phase:{id:phase.id,title:phase.title,description:phase.description.slice(0,240),milestones:relevant.map(m=>({id:m.id,title:m.title,description:m.description ?? ''}))}}
  const bytes=()=>new TextEncoder().encode(JSON.stringify(compact)).length
  if(bytes()>MAX_PROJECT_CONTEXT_BYTES) {compact.roadmapSummary='';compact.phase.description='';compact.phase.milestones=compact.phase.milestones.map(m=>({...m,description:''}))}
  if(bytes()>MAX_PROJECT_CONTEXT_BYTES) compact.startingLevel={...compact.startingLevel,...(compact.startingLevel.priorKnowledge ? {priorKnowledge:compact.startingLevel.priorKnowledge.slice(0,300)} : {}),...(compact.startingLevel.description ? {description:compact.startingLevel.description.slice(0,200)} : {})}
  if(bytes()>MAX_PROJECT_CONTEXT_BYTES) compact.phase.milestones=compact.phase.milestones.slice(0,1)
+ if(bytes()>MAX_PROJECT_CONTEXT_BYTES && compact.learningState) {
+   compact.learningState={...compact.learningState,known:[...compact.learningState.known],inProgress:[...compact.learningState.inProgress],weak:[...compact.learningState.weak],recentProgress:[...compact.learningState.recentProgress]}
+   while(bytes()>MAX_PROJECT_CONTEXT_BYTES && compact.learningState.recentProgress.length)compact.learningState.recentProgress.pop()
+   const lists=['known','inProgress','weak']
+   while(bytes()>MAX_PROJECT_CONTEXT_BYTES && lists.some(k=>compact.learningState[k].length>1)) {const key=lists.slice().sort((a,b)=>compact.learningState[b].length-compact.learningState[a].length)[0];compact.learningState[key].pop()}
+   if(bytes()>MAX_PROJECT_CONTEXT_BYTES)compact.learningState.nextSessionNote=compact.learningState.nextSessionNote.slice(0,120)
+   while(bytes()>MAX_PROJECT_CONTEXT_BYTES && lists.some(k=>compact.learningState[k].length)) {const key=lists.slice().sort((a,b)=>compact.learningState[b].length-compact.learningState[a].length)[0];compact.learningState[key].pop()}
+ }
  return readProjectMissionContext(compact)
 }
 export function validateProjectMissionContext(v) {try{readProjectMissionContext(v);return true}catch{return false}}
 export function projectSessionTarget(context) {
- return context.phase.milestones.find(m=>!isKnownTopic(m.title,context))?.title ?? 'Nächsten kleinen Anwendungsschritt wählen'
+ const focus=[...(context.learningState?.weak ?? []),...(context.learningState?.inProgress ?? [])]
+ const relevant=context.phase.milestones.find(m=>focus.some(t=>tokens(m.title).some(w=>tokens(t).includes(w))) && !isKnownTopic(m.title,context))
+ return relevant?.title ?? context.phase.milestones.find(m=>!isKnownTopic(m.title,context))?.title ?? 'Nächsten kleinen Anwendungsschritt wählen'
 }
 export function unnecessaryKnownTopic(steps,input) {
  if(!input.projectContext)return -1
@@ -70,6 +82,7 @@ export function projectSessionDescription(action,input,index,kind,last) {
  const c=input.projectContext
  const focus='Aktuelle Phase „'+c.phase.title+'“, nächste Etappe „'+projectSessionTarget(c)+'“. '
  const energy=input.energyLevel==='low' ? 'Ein kleiner eigener Teil genügt. ' : input.energyLevel==='high' ? 'Versuche eine anspruchsvollere eigene Anwendung. ' : 'Bearbeite einen Teil in deinem Tempo. '
- const known=index===0 && c.startingLevel.priorKnowledge ? 'Nutze dein Vorwissen für eine Lücke oder nächste Anwendung statt Bekanntes neu zu lernen. ' : ''
- return (focus+energy+known+personalizeContextAction(action,input,index,kind,last)).slice(0,600)
+ const known=index===0 && (c.startingLevel.priorKnowledge || c.learningState?.known.length) ? 'Nutze dein Vorwissen für eine Lücke oder nächste Anwendung statt Bekanntes neu zu lernen. ' : ''
+ const progress=index===0 && c.learningState ? 'Bestätigter Lernstand: '+[...c.learningState.inProgress,...c.learningState.weak].slice(0,2).map(t=>t.slice(0,60)).join('; ')+'. '+c.learningState.nextSessionNote.slice(0,80)+' ' : ''
+ return (focus+energy+personalizeContextAction(action,input,index,kind,last)+' '+known+progress).slice(0,600)
 }

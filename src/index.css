@@ -998,3 +998,16 @@ button:disabled { cursor: not-allowed; }
 
 .project-milestone-status { display: flex; align-items: center; gap: .5rem; margin: .5rem 0; }
 .project-milestone-status input { width: auto; flex: 0 0 auto; }
+
+/* Phase 11C: compact session review, also usable above FocusMode. */
+.project-review-offer { position: fixed; bottom: 5.5rem; right: 1rem; z-index: 30; width: min(24rem, calc(100vw - 2rem)); padding: .75rem; border: 1px solid var(--border-color, #64748b); border-radius: 1rem; background: var(--panel-bg, #111827); color: #f8fafc; box-shadow: 0 8px 24px #0008; }
+.project-review-offer p { margin: 0 0 .5rem; }
+.project-review-offer button { max-width: 100%; overflow-wrap: anywhere; }
+.project-review-dialog { width: min(36rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow-y: auto; overflow-wrap: anywhere; }
+.project-review-dialog label { display: grid; gap: .4rem; margin-block: .6rem; }
+.project-review-dialog input:not([type=checkbox]), .project-review-dialog textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+.project-review-dialog fieldset { min-width: 0; margin-block: .6rem; }
+.project-review-dialog .project-actions { flex-wrap: wrap; }
+
+.project-review-dialog { display: block; flex-shrink: 0; }
+.project-review-offer { max-height: 40dvh; overflow-y: auto; }

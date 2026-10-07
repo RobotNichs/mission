@@ -1,0 +1,10 @@
+export type ProjectLearningState={version:1;known:string[];inProgress:string[];weak:string[];recentProgress:{id:string;sessionId:string;createdAt:string;summary:string}[];nextSessionNote:string}
+export type LearningContextState={version:1;known:string[];inProgress:string[];weak:string[];recentProgress:string[];nextSessionNote:string}
+export function readLearningState(v:unknown):ProjectLearningState
+export function emptyLearningState():ProjectLearningState
+export function readLearningContextState(v:unknown):LearningContextState
+export function fields(v:unknown,keys:string[]):Record<string,unknown>
+export function boundedText(v:unknown,max:number,empty?:boolean):string
+export function timestamp(v:unknown):string
+export function topicList(v:unknown,max?:number):string[]
+export function selectLearningContextState(value:ProjectLearningState,focus?:string):LearningContextState

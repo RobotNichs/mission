@@ -1,3 +1,4 @@
+import { readLearningState } from './projectLearningState.mjs'
 import { validateLearningContext } from './learningContext.mjs'
 export const MAX_PROJECTS = 50
 export const MAX_PHASES = 8
@@ -58,13 +59,13 @@ export function readRoadmap(v) {
   return {version:1,summary:text(r.summary,400),phases}
 }
 export function readProject(v) {
-  const p=object(v,['version','id','title','goal','createdAt','updatedAt','status','startingLevel','duration','weeklyMinutes','daysPerWeek','learningContext','roadmap','manualNotes'])
+  const p=object(v,['version','id','title','goal','createdAt','updatedAt','status','startingLevel','duration','weeklyMinutes','daysPerWeek','learningContext','roadmap','manualNotes','learningState'])
   if(p.version !== 1 || !['active','paused','completed','archived'].includes(p.status)) fail()
   const createdAt=timestamp(p.createdAt), updatedAt=timestamp(p.updatedAt)
   if(updatedAt < createdAt) fail()
   // Past end dates remain valid on reload.
   const input=readProjectInput(Object.fromEntries(['title','goal','startingLevel','duration','weeklyMinutes','daysPerWeek','learningContext'].map(k=>[k,p[k]])),createdAt.slice(0,10))
-  return {...input,version:1,id:text(p.id,100),createdAt,updatedAt,status:p.status,roadmap:readRoadmap(p.roadmap),manualNotes:text(p.manualNotes ?? '',2000,true)}
+  return {...input,...(p.learningState!==undefined ? {learningState:readLearningState(p.learningState)} : {}),version:1,id:text(p.id,100),createdAt,updatedAt,status:p.status,roadmap:readRoadmap(p.roadmap),manualNotes:text(p.manualNotes ?? '',2000,true)}
 }
 export function readProjectStore(v, isolate = false) {
   const r=object(v,['version','projects'])

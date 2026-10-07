@@ -9,7 +9,7 @@ const levels = [['beginner','Anfänger'],['basic','Grundkenntnisse'],['advanced'
 const statuses = [['active','Aktiv'],['paused','Pausiert'],['completed','Abgeschlossen'],['archived','Archiviert']] as const
 const emptyInput:ProjectInput={title:'',goal:'',startingLevel:{type:'beginner'},duration:{type:'fixed-days',days:30},weeklyMinutes:120,daysPerWeek:null,learningContext:{}}
 function durationLabel(d:ProjectInput['duration']) {return d.type === 'fixed-days' ? d.days+' Tage' : d.type === 'date' ? 'Bis '+d.targetDate : 'Ohne Enddatum'}
-export default function LongTermProjects({enabled,onBusy,onMission}:{enabled:boolean;onBusy?:(busy:boolean)=>void;onMission?:(projectId:string,input:ProjectSessionInput)=>Promise<boolean>}) {
+export default function LongTermProjects({enabled,onBusy,onMission,revision=0}:{revision?:number;enabled:boolean;onBusy?:(busy:boolean)=>void;onMission?:(projectId:string,input:ProjectSessionInput)=>Promise<boolean>}) {
  const [loaded]=useState(()=>loadProjects())
  const [projects,setProjects]=useState<LongTermProject[]>(loaded.projects)
  const [dailyProject,setDailyProject]=useState<string|null>(null)
@@ -22,6 +22,7 @@ export default function LongTermProjects({enabled,onBusy,onMission}:{enabled:boo
  const available=useRef(enabled); available.current=enabled
  const alive=useRef(true)
  useEffect(()=>{alive.current=true; return()=>{alive.current=false}},[])
+ useEffect(()=>{setProjects(loadProjects().projects)},[revision])
  const current=projects.find(p=>p.id===selected)
  const disabled=!enabled || busy || loaded.damaged
  function patch(p:Partial<ProjectInput>) {setDraft(d=>({...d,...p}))}
@@ -66,6 +67,7 @@ export default function LongTermProjects({enabled,onBusy,onMission}:{enabled:boo
       if(disabled)return
       try {const latest=loadProjects();if(latest.damaged)throw new Error('Der Projektspeicher ist beschädigt.');const project=latest.projects.find(v=>v.id===current.id);if(!project)throw new Error('Das Projekt ist nicht mehr vorhanden.');setProjects(saveProject({...project,updatedAt:new Date().toISOString(),roadmap:{...project.roadmap,phases:project.roadmap.phases.map(v=>v.id===p.id ? {...v,milestones:v.milestones.map(w=>w.id===m.id ? {...w,status:e.target.checked ? 'completed' as const : 'pending' as const} : w)} : v)}}));setNotice('Meilensteinstatus lokal gespeichert.')}catch(e){setNotice(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.')}
      }}/>{m.status==='completed' ? 'Erledigt' : 'Offen'}</label>{m.description && <p>{m.description}</p>}</li>)}</ul></li>)}</ol>
+    {current.learningState && <details><summary>Lernstand</summary><p><strong>Bekannt:</strong> {current.learningState.known.join(' · ') || 'Keine bestätigten Angaben'}</p><p><strong>In Arbeit:</strong> {current.learningState.inProgress.join(' · ') || 'Keine Angaben'}</p><p><strong>Unsicher:</strong> {current.learningState.weak.join(' · ') || 'Keine Angaben'}</p>{current.learningState.nextSessionNote && <p>Für die nächste Session: {current.learningState.nextSessionNote}</p>}<h4>Letzte Fortschritte</h4><ul>{current.learningState.recentProgress.map(r=><li key={r.id}>{r.summary}</li>)}</ul></details>}
     {current.manualNotes && <><h4>Eigene Notizen</h4><p className="project-notes">{current.manualNotes}</p></>}
    </article>}
   </>}

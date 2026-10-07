@@ -1,3 +1,5 @@
+import { readSourceProject } from '../../shared/sourceProject.mjs'
+import { readSessionReview } from '../../shared/projectReviewSchema.mjs'
 import { validateSourceProject } from '../../shared/sourceProject.mjs'
 import { PROJECT_STORAGE_KEY, readProjectStore } from '../../shared/longTermProjectSchema.mjs'
 import { initialGamificationState } from '../types/gamification'
@@ -52,7 +54,7 @@ function validateData(data: unknown): Data {
       plan(r.form, true); const p = r.mission === null ? null : plan(r.mission)
       number(r.remainingSeconds, 10080 * 60); if (r.elapsedSeconds !== undefined) number(r.elapsedSeconds)
       const history = r.history ?? []; if (!Array.isArray(history) || history.length > 5) fail()
-      history.forEach(v => { const h = fields(v, [...sessionFields, 'endedAt', 'status']); context(h); if (h.breakSeconds !== undefined) number(h.breakSeconds); if (h.completedFocusBlocks !== undefined) integer(h.completedFocusBlocks, 10080) })
+      history.forEach(v => { const h = fields(v, [...sessionFields, 'endedAt', 'status', 'projectReview']); context(h); if (h.projectReview !== undefined) { try { readSessionReview(h.projectReview, readSourceProject(h.sourceProject) ?? fail()) } catch { fail() } } if (h.breakSeconds !== undefined) number(h.breakSeconds); if (h.completedFocusBlocks !== undefined) integer(h.completedFocusBlocks, 10080) })
       const normalized = normalizeHistory(history); if (normalized.length !== history.length) fail()
       if (r.activeSession != null) { const a = fields(r.activeSession, [...sessionFields, 'missionId']); context(a); if (a.breakSeconds !== undefined) number(a.breakSeconds); if (a.completedFocusBlocks !== undefined) integer(a.completedFocusBlocks, 10080); if (!normalizeActiveSession(r.activeSession, normalized) || a.missionId !== p?.id) fail() }
       if (r.focusBlocks != null) {

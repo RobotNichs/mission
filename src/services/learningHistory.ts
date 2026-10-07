@@ -1,3 +1,4 @@
+import { readSessionReview, type SessionReview } from '../../shared/projectReviewSchema.mjs'
 import { readSourceProject, type SourceProject } from '../../shared/sourceProject.mjs'
 import { readFocusStrategy, validFocusStrategy, type FocusStrategy } from './focusBlocks'
 export type SessionHistoryEntry = {
@@ -11,6 +12,7 @@ export type SessionHistoryEntry = {
   completedSteps: number
   totalSteps: number
   status: 'completed' | 'ended_early'
+  projectReview?: SessionReview
   sourceProject?: SourceProject
   focusStrategy?: FocusStrategy
   completedFocusBlocks?: number
@@ -37,7 +39,10 @@ function validBase(value: unknown): boolean {
 
 // Reconstruct whitelisted fields; never retain arbitrary stored payloads.
 function base(value: Record<string, unknown>) {
+  let projectReview:SessionReview | undefined
+  try {if(value.projectReview!==undefined && readSourceProject(value.sourceProject))projectReview=readSessionReview(value.projectReview,readSourceProject(value.sourceProject)!)} catch { /* Keep the valid session, reject unsafe review metadata. */ }
   return {
+    ...(projectReview ? {projectReview} : {}),
     ...(readSourceProject(value.sourceProject) ? {sourceProject:readSourceProject(value.sourceProject)} : {}),
     id: value.id as string, startedAt: value.startedAt as string, goal: value.goal as string,
     focusSeconds: value.focusSeconds as number, plannedSeconds: value.plannedSeconds as number | null,

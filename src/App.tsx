@@ -1,3 +1,5 @@
+import ProjectReviewDialog from './components/ProjectReviewDialog'
+import { applyProjectReview, captureSessionReview, createReviewTicket, reconcileAppliedReviews, saveReviewDraft, type ReviewTicket } from './services/projectReview'
 import { readSourceProject } from '../shared/sourceProject.mjs'
 import { loadProjects } from './services/longTermProjects'
 import { projectMissionRequest, assertCurrentProjectContext, type ProjectSessionInput } from './services/projectMission'
@@ -191,7 +193,7 @@ function readSavedMission(): SavedAppState | null {
     if (!form) return null
 
     const storedSeconds = parsed.remainingSeconds
-    const history = normalizeHistory(parsed.history)
+    const history = reconcileAppliedReviews(normalizeHistory(parsed.history), loadProjects().projects)
     return {
       form,
       history,
@@ -279,6 +281,9 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
   const [isFocusMode, setIsFocusMode] = useState(false)
+  const [reviewTicket, setReviewTicket] = useState<ReviewTicket | null>(null)
+  const [projectRevision, setProjectRevision] = useState(0)
+  const [reviewNotice, setReviewNotice] = useState('')
   const normalTimerButton = useRef<HTMLButtonElement>(null)
   const hasEnteredFocus = useRef(false)
   const [canWrite, setCanWrite] = useState(false)
@@ -335,7 +340,8 @@ function App() {
     const snapshot = currentPlan?.id === active.missionId ? { ...active,
       completedSteps: currentPlan.steps.filter(s => s.done).length, totalSteps: currentPlan.steps.length } : active
     const endedAt = new Date(Math.max(Date.now(), Date.parse(active.startedAt))).toISOString()
-    const next = finishLearningSession(appSnapshot.current.history ?? [], snapshot, status, endedAt)
+    let next = finishLearningSession(appSnapshot.current.history ?? [], snapshot, status, endedAt)
+    if (currentPlan?.id === active.missionId) next = next.map(entry => { if(entry.id !== active.id) return entry; const projectReview = captureSessionReview(entry, currentPlan); return projectReview ? {...entry, projectReview} : entry })
     if (next.some(entry => entry.id === active.id) && !(appSnapshot.current.history ?? []).some(entry => entry.id === active.id)) {
       commitStatistics(countStatisticsSession(statisticsRef.current, active.id, status))
     }
@@ -713,6 +719,10 @@ function App() {
   }
   const hideMobile = (area: MobileArea) => isMobile && !tourOpen && mobileArea !== area
 
+  const reviewable = history.filter(entry => { try { createReviewTicket(entry); return true } catch { return false } })
+  function syncReviewHistory(next: SessionHistoryEntry[]) { appSnapshot.current = {...appSnapshot.current,history:next}; setHistory(next) }
+  const reviewUi = <>{!isRunning && reviewable.some(e=>e.projectReview?.status==='pending') && <aside className="project-review-offer" aria-label="Projekt-Review"><p>Session beendet: Projektfortschritt prüfen</p>{reviewable.filter(e=>e.projectReview?.status==='pending').map(entry => <button type="button" key={entry.id} onClick={() => { try { setReviewTicket(createReviewTicket(entry)); setReviewNotice('') } catch(e) { setReviewNotice(e instanceof Error ? e.message : 'Review nicht verfügbar.') } }}>Projektfortschritt übernehmen{reviewable.length > 1 ? ': '+entry.goal : ''}</button>)}</aside>}{reviewNotice && <p role="status">{reviewNotice}</p>}{reviewTicket && <ProjectReviewDialog key={reviewTicket.sessionId} ticket={reviewTicket} initial={history.find(e=>e.id===reviewTicket.sessionId)?.projectReview?.draft} enabled={canWrite && !isRunning} onDraft={draft=>{if(writer.current)syncReviewHistory(saveReviewDraft(reviewTicket.sessionId,draft,'pending',true))}} onApply={draft=>{const result=applyProjectReview(reviewTicket,draft,writer.current && canWrite && !isRunning);syncReviewHistory(result.history);setProjectRevision(v=>v+1);setReviewTicket(null);setReviewNotice('Projektfortschritt übernommen.')}} onSkip={()=>{if(writer.current)try{syncReviewHistory(saveReviewDraft(reviewTicket.sessionId,undefined,'skipped',true))}catch{/* A stale review can always be closed. */}setReviewTicket(null)}} />}</>
+
   if (isFocusMode) return (
     <>
       <FocusMode mission={mission} orb={getEquippedOrb(gamification)}
@@ -727,12 +737,14 @@ function App() {
         onEndSession={hasActiveSession ? () => endLearningSession() : undefined}
         onCompleteSession={hasActiveSession ? () => endLearningSession('completed') : undefined}
         onToggleStep={toggleStep} onLeave={leaveFocusMode} />
+      {reviewUi}
       {showMissionCompletion && <MissionRewardDialog onClose={() => setShowMissionCompletion(false)} />}
     </>
   )
 
   return (
     <>
+    {reviewUi}
     <fieldset className="mission-writer-surface" disabled={!canWrite} onClickCapture={event => {
       if (tourOpen && !(event.target instanceof Element && event.target.closest('[data-tour-controls]'))) { event.preventDefault(); event.stopPropagation() }
     }} onChangeCapture={event => {
@@ -1031,11 +1043,11 @@ function App() {
 
       </div>
       <div hidden={hideMobile('progress')}>
-      <LearningHistory entries={history} />
+      <LearningHistory entries={history} reviewableIds={reviewable.map(e=>e.id)} onReview={entry=>{try{setReviewTicket(createReviewTicket(entry));setReviewNotice('')}catch(e){setReviewNotice(e instanceof Error?e.message:'Review nicht verfügbar.')}}} />
       <LearningStatistics active={isMobile && mobileArea === 'progress'} statistics={statistics} total={gamification.totalFocusMilliseconds} canWrite={canWrite} onGoals={changeGoals} />
       </div>
       <div hidden={hideMobile('library')}>
-      <LongTermProjects enabled={canWrite && !isGenerating && !pendingClarification && !tourOpen && !infoOpen} onBusy={setProjectBusy} onMission={createProjectMission} />
+      <LongTermProjects revision={projectRevision} enabled={canWrite && !isGenerating && !pendingClarification && !tourOpen && !infoOpen} onBusy={setProjectBusy} onMission={createProjectMission} />
       <MissionLibrary active={isMobile && mobileArea === 'library'} saveRequest={templateSaveRequest} suggestedOrigin={templateOrigin} onDismissSave={() => setTemplateSaveRequest(null)}
         enabled={canWrite && !isGenerating && pendingClarification === null && !tourOpen} sessionActive={hasActiveSession}
         onUse={plan => {
