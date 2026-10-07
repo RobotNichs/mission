@@ -12,12 +12,15 @@ type Props = {
   state: GamificationState
   enabled: boolean
   onChange: (transform: (current: GamificationState) => GamificationState) => boolean
+  displayLevelOverride?: number | null
+  onDisplayLevelChange?: (value: number | null) => void
 }
 
-export default function GamificationDebug({ state, enabled, onChange }: Props) {
+export default function GamificationDebug({ state, enabled, onChange, displayLevelOverride = null, onDisplayLevelChange }: Props) {
   const [orbId, setOrbId] = useState(orbCollection[0].id)
   const [notice, setNotice] = useState<string | null>(null)
-  const [previewLevel, setPreviewLevel] = useState(1)
+  const [localPreviewLevel, setPreviewLevel] = useState(1)
+  const previewLevel = displayLevelOverride ?? localPreviewLevel
   const [previewOrbId, setPreviewOrbId] = useState('equipped')
   if (!isLocalDevelopment(import.meta.env.DEV, window.location.hostname)) return null
 
@@ -33,6 +36,12 @@ export default function GamificationDebug({ state, enabled, onChange }: Props) {
       <p className="shop-description">Nur für lokale Entwicklung. Testwerte werden auf diesem Gerät gespeichert; vorhandene Daten bleiben erhalten. Keine Fokuszeit und keine Level durch diese Aktionen.</p>
       <PrestigePreview />
       <section className="debug-level-preview" aria-label="Visuelle Level-Vorschau">
+        {onDisplayLevelChange && <>
+          <label><input type="checkbox" checked={displayLevelOverride !== null}
+            onChange={event => onDisplayLevelChange(event.target.checked ? previewLevel : null)} /> Globalen Test-Level verwenden</label>
+          <p>Nur visuell. Dein echter Fortschritt bleibt unverändert.</p>
+          <button className="focus-leave" type="button" onClick={() => { onDisplayLevelChange(null); setPreviewLevel(1) }}>Test-Level zurücksetzen</button>
+        </>}
         <label className="field-label" htmlFor="debug-prestige-orb">Prestige-Orb-Vorschau</label>
         <select id="debug-prestige-orb" value={previewOrbId} onChange={event => {
           const id = event.target.value
@@ -45,13 +54,16 @@ export default function GamificationDebug({ state, enabled, onChange }: Props) {
         <input id="debug-level-preview" type="range" min={1} max={100} step={1} value={previewLevel}
           onChange={event => {
             const value = Number(event.target.value)
-            if (Number.isInteger(value) && value >= 1 && value <= 100) setPreviewLevel(value)
+            if (Number.isInteger(value) && value >= 1 && value <= 100) {
+              setPreviewLevel(value)
+              if (displayLevelOverride !== null) onDisplayLevelChange?.(value)
+            }
           }} />
         <p>Nur visuell. Dein echtes Spielerlevel und alle Fortschrittsdaten bleiben unverändert.</p>
         <OrbVisual orb={prestigeOrbs.find(item => item.orb.id === previewOrbId)?.orb ?? getEquippedOrb(state)}
           className="debug-preview-orb" label={`Orb-Vorschau, Level ${previewLevel}`}
           style={{ width: `${getOrbSize(previewLevel, 'focus')}px`, height: 'auto', aspectRatio: '1' }} />
-        <button className="focus-leave" type="button" onClick={() => setPreviewLevel(1)}>Level-Vorschau zurücksetzen</button>
+        {!onDisplayLevelChange && <button className="focus-leave" type="button" onClick={() => setPreviewLevel(1)}>Level-Vorschau zurücksetzen</button>}
         <button className="focus-leave" type="button" onClick={() => setPreviewOrbId('equipped')}>Orb-Vorschau zurücksetzen</button>
       </section>
       <div className="shop-confirm-actions">

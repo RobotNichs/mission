@@ -247,6 +247,10 @@ function App() {
   const [mission, setMission] = useState<LearningPlan | null>(saved?.mission ?? null)
   const [remainingSeconds, setRemainingSeconds] = useState(saved?.remainingSeconds ?? 25 * 60)
   const [gamification, setGamification] = useState<GamificationState>(loadGamificationState)
+  const [displayLevelOverride, setDisplayLevelOverride] = useState<number | null>(null)
+  const actualPlayerLevel = getLevel(gamification.totalFocusMilliseconds / 60000)
+  const effectiveDisplayLevel = import.meta.env.DEV && isLocalDevelopment(import.meta.env.DEV, window.location.hostname)
+    ? displayLevelOverride ?? actualPlayerLevel : actualPlayerLevel
   const [statistics, setStatistics] = useState(() => loadStatistics(gamification.totalFocusMilliseconds))
   const statisticsRef = useRef(statistics)
   const focusWallAnchor = useRef(0)
@@ -670,7 +674,7 @@ function App() {
       <FocusMode mission={mission} orb={getEquippedOrb(gamification)}
         orbOrigin={orbOrigin.current}
         environment={focusEnvironment} onEnvironmentChange={changeFocusEnvironment} environmentNotice={environmentNotice}
-        level={getLevel(gamification.totalFocusMilliseconds / 60000)}
+        level={effectiveDisplayLevel}
         countdown={formatTime(focusBlocks ? focusBlocks.remainingMilliseconds / 1000 : mission?.timeMode === 'stopwatch' ? elapsedSeconds : remainingSeconds)} stopwatch={mission?.timeMode === 'stopwatch'} isRunning={isRunning} finished={mission?.timeMode !== 'stopwatch' && remainingSeconds === 0}
         phase={focusBlocks?.phase} blockLabel={focusBlocks ? blockStatus() : undefined} onSkipBreak={focusBlocks?.phase === 'break' ? skipBreak : undefined}
         enabled={canWrite} error={storageError} onToggleTimer={toggleTimer} onResetTimer={resetTimer}
@@ -943,6 +947,7 @@ function App() {
 
       <div className="mission-support">
       <GamificationPanel
+        displayLevel={effectiveDisplayLevel}
         sectionRef={coreTarget}
         coreRef={dashboardOrb}
         state={gamification}
@@ -954,7 +959,11 @@ function App() {
         onEquipOrb={id => { if (writer.current) commitGamification(equipOrb(game.current, id)) }} />}
       {import.meta.env.DEV && GamificationDebug && isLocalDevelopment(import.meta.env.DEV, window.location.hostname) && (
         <Suspense fallback={null}>
-          <GamificationDebug state={gamification} enabled={canWrite} onChange={(transform) => {
+          <GamificationDebug state={gamification} enabled={canWrite} displayLevelOverride={displayLevelOverride}
+            onDisplayLevelChange={value => {
+              if (isLocalDevelopment(import.meta.env.DEV, window.location.hostname)
+                && (value === null || (Number.isInteger(value) && value >= 1 && value <= 100))) setDisplayLevelOverride(value)
+            }} onChange={(transform) => {
             if (!writer.current || !isLocalDevelopment(import.meta.env.DEV, window.location.hostname)) return false
             try { commitGamification(transform(game.current)); return true } catch { failStorage(); return false }
           }} />

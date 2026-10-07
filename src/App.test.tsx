@@ -29,6 +29,7 @@ async function createMission(task: string, minutes: number) {
   })
   fireEvent.click(screen.getByRole('button', { name: /Mission planen|Mission aktualisieren/ }))
   await waitFor(() => expect(document.querySelector('.summary-copy p')?.textContent).toBe(task))
+  await waitFor(() => expect(JSON.parse(localStorage.getItem('mission.saved-mission.v1') ?? 'null')?.mission?.goal).toBe(task))
 }
 
 function getStepMinutes() {

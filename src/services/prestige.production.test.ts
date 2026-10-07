@@ -14,6 +14,9 @@ it('entfernt die Prestige-Vorschau aus einem echten Produktionsbundle', async ()
   const source = outputs.flatMap(output => 'output' in output ? output.output : [])
     .map(chunk => chunk.type === 'chunk' ? chunk.code : '').join('\n')
   expect(source).toContain('Maximaler Prestige-Rang V')
+  for (const marker of ['Globalen Test-Level verwenden', 'Test-Level zurücksetzen', 'onDisplayLevelChange', 'debug-level-preview']) {
+    expect(source.includes(marker), `Kein globaler Test-Level: ${marker}`).toBe(false)
+  }
   for (const marker of ['Prestige-Vorschau', 'prestige-preview', 'Vorschau: Prestige', 'Erreicht (Vorschau)', 'Prestige-Orb-Vorschau', 'Orb-Vorschau zurücksetzen', 'debug-prestige-orb']) {
     expect(source.includes(marker), `Kein Vorschaucode: ${marker}`).toBe(false)
   }

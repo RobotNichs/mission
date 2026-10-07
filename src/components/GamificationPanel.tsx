@@ -16,11 +16,13 @@ type GamificationPanelProps = {
   rewardNotice: string | null
   coreRef?: Ref<HTMLDivElement>
   sectionRef?: Ref<HTMLElement>
+  displayLevel?: number
 }
 
-export default function GamificationPanel({ state, rewardNotice, coreRef, sectionRef }: GamificationPanelProps) {
+export default function GamificationPanel({ state, rewardNotice, coreRef, sectionRef, displayLevel }: GamificationPanelProps) {
   const focusMinutes = state.totalFocusMilliseconds / 60_000
   const level = getLevel(focusMinutes)
+  const effectiveDisplayLevel = import.meta.env.DEV ? displayLevel ?? level : level
   const withinLevel = focusMinutes - getLevelStartMinutes(level)
   const required = getLevelStartMinutes(level + 1) - getLevelStartMinutes(level)
   const progress = (withinLevel / required) * 100
@@ -31,7 +33,7 @@ export default function GamificationPanel({ state, rewardNotice, coreRef, sectio
       <header className="mission-core-heading"><p className="section-kicker">DEIN LANGFRISTIGER FORTSCHRITT</p><h2>Mission Core</h2></header>
       <div className="core-column">
         <div ref={coreRef} className={`mission-core core-orb-${state.equippedOrbId ? equippedOrb.rarity : 'default'} core-effect-${state.selectedCoreEffectId}`}
-          style={{ width: `min(${getOrbSize(level) * 1.8}px, 220px, 100%)`, aspectRatio: '1' }} role="img" aria-label={`Mission Core, Level ${level}`}>
+          style={{ width: `min(${getOrbSize(effectiveDisplayLevel) * 1.8}px, 220px, 100%)`, aspectRatio: '1' }} role="img" aria-label={`Mission Core, Level ${effectiveDisplayLevel}`}>
           <OrbVisual orb={equippedOrb} className="core-orb-art" />
         </div>
         <span className="core-caption">{equippedOrb.name}</span>
@@ -41,7 +43,8 @@ export default function GamificationPanel({ state, rewardNotice, coreRef, sectio
         <div className="level-title-row">
           <div>
             <p className="section-kicker">DEIN FORTSCHRITT</p>
-            <h2>Level {level}</h2>
+            <h2>Level {effectiveDisplayLevel}</h2>
+            {import.meta.env.DEV && effectiveDisplayLevel !== level && <small>Visuelle Vorschau · Echter Level {level}</small>}
           </div>
         </div>
         <dl className="core-stats">
