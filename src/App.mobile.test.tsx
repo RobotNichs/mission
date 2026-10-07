@@ -26,21 +26,24 @@ beforeEach(() => {
   localStorage.setItem(GAMIFICATION_STORAGE_KEY, JSON.stringify({ ...initialGamificationState, coins: 41, totalFocusMilliseconds: 1800000 }))
 })
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.useRealTimers() })
-it.each([320, 360, 390, 430, 768])('shows five mobile actions with Home active at %s px', width => {
+it.each([320, 360, 390, 430, 768])('shows six mobile actions with Home active at %s px', width => {
   viewport(width); render(<App />)
-  expect(navigation().getAllByRole('button')).toHaveLength(5)
+  expect(navigation().getAllByRole('button')).toHaveLength(6)
   expect(navigation().getByRole('button', { name: 'Home' }).getAttribute('aria-current')).toBe('page')
   expect(screen.getByRole('region', { name: 'Heutige Mission' })).toBeTruthy()
   expect(screen.queryByRole('textbox', { name: 'Was möchtest du lernen?' })).toBeNull()
 })
-it.each([769, 1280])('preserves the complete desktop dashboard at %s px', width => {
+it.each([769, 1280])('offers separated desktop dashboard areas at %s px', width => {
   viewport(width); render(<App />)
   expect(screen.queryByRole('navigation', { name: 'Mobile Hauptnavigation' })).toBeNull()
+  expect(screen.getByRole('navigation', { name: 'Desktop Hauptnavigation' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Plan' }))
   expect(screen.getByRole('textbox', { name: 'Was möchtest du lernen?' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Home' }))
   expect(screen.getByRole('region', { name: 'Lern-Timer' })).toBeTruthy()
   expect(screen.getByRole('heading', { name: 'Mission Core' })).toBeTruthy()
 })
-it.each(['Home', 'Plan', 'Bibliothek', 'Fortschritt'])('activates %s accessibly without changing any storage', label => {
+it.each(['Home', 'Plan', 'Projekte', 'Bibliothek', 'Fortschritt'])('activates %s accessibly without changing any storage', label => {
   render(<App />)
   const snapshot = { ...localStorage }, write = vi.spyOn(Storage.prototype, 'setItem')
   fireEvent.click(navigation().getByRole('button', { name: label }))
@@ -153,7 +156,7 @@ it.each([320, 360, 390, 430, 768, 1280])('keeps the navigation and content CSS c
   if (width <= 768) {
     const orb = document.querySelector('.mobile-navigation-orb') as HTMLElement
     expect(parseFloat(orb.style.width)).toBeLessThanOrEqual(Math.min(64, width / 5))
-  } else expect(screen.queryByRole('navigation')).toBeNull()
+  } else expect(screen.getByRole('navigation', { name: 'Desktop Hauptnavigation' })).toBeTruthy()
 })
 it('opens and closes collection on Home using the existing dialog', () => {
   render(<App />); fireEvent.click(screen.getByRole('button', { name: 'Sammlung' }))

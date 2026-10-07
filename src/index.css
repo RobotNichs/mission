@@ -1011,3 +1011,48 @@ button:disabled { cursor: not-allowed; }
 
 .project-review-dialog { display: block; flex-shrink: 0; }
 .project-review-offer { max-height: 40dvh; overflow-y: auto; }
+/* Shared application areas: mounted content preserves drafts on navigation. */
+.loading-status { display: flex; align-items: center; gap: 12px; padding: 12px 0; color: var(--ink); }
+.loading-status small { display: block; color: var(--muted); margin-top: 4px; }
+.loading-ring { width: 18px; height: 18px; flex: 0 0 18px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: loading-turn 1.2s linear infinite; }
+@keyframes loading-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loading-ring { animation: none; } }
+.desktop-sidebar { display: none; }
+.phase-toggle { display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left; padding: 12px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); }
+.phase-toggle[aria-expanded="true"] { border-left: 3px solid var(--accent); }
+.phase-toggle span, .project-meta { font-size: 12px; color: var(--muted); }
+.project-phases [hidden] { display: none !important; }
+.project-detail details { margin-block: 12px; }
+.project-detail summary { cursor: pointer; padding: 10px 0; }
+.app-shell[data-app-area] .workspace-grid:has(> [hidden]:first-child):has(> [hidden]:last-child) { display: none; }
+.app-shell[data-app-area] .mobile-mission-summary { padding: 16px; border: 1px solid var(--line); border-radius: 12px; margin-block: 16px; }
+.app-shell[data-app-area] .mobile-mission-summary h2 { font-size: 20px; }
+.app-shell[data-app-area="home"] .mission-support { display: flex; flex-direction: column; gap: 16px; }
+.app-shell[data-app-area="home"] .gamification-panel { order: -1; }
+.app-shell .crate-shop { padding: 16px; }
+@media (min-width: 769px) {
+  .desktop-sidebar { display: flex; flex-direction: column; position: fixed; inset: 0 auto 0 0; width: 188px; box-sizing: border-box; padding: 24px 12px; background: #0a111e; border-right: 1px solid var(--line); z-index: 40; overflow-y: auto; }
+  .sidebar-brand { font-size: 24px; font-weight: 700; padding: 0 12px 28px; }
+  .sidebar-brand span { color: var(--accent); }
+  .desktop-sidebar nav, .sidebar-help { display: grid; gap: 6px; }
+  .sidebar-help { margin-top: auto; padding-top: 24px; }
+  .desktop-sidebar button, .desktop-sidebar a { display: flex; gap: 10px; align-items: center; min-height: 44px; padding: 10px 12px; text-decoration: none; text-align: left; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+  .desktop-sidebar button[aria-current="page"] { color: var(--ink); border-left: 3px solid var(--accent); background: var(--surface-raised); font-weight: 700; }
+  .desktop-sidebar :is(button,a):hover:not(:disabled) { background: var(--surface-raised); color: var(--ink); }
+  .desktop-sidebar :is(button,a):focus-visible, .phase-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .desktop-sidebar button:disabled { opacity: .45; cursor: default; }
+  .app-shell[data-app-area] { width: min(1100px, calc(100% - 236px)); margin-left: max(212px, calc((100% - 188px - 1100px) / 2 + 188px)); }
+  .app-shell[data-app-area] .mobile-area-heading { font-size: 24px; }
+  .app-shell[data-app-area] .mobile-area-heading:focus { outline: none; }
+  .app-shell[data-app-area] .mission-support { min-width: 0; }
+}
+@media (max-width: 768px) {
+  .mobile-navigation { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .mobile-navigation button:last-child { grid-column: 6 / span 2; }
+}
+
+.app-shell[data-app-area="home"] { display: flex; flex-direction: column; }
+.app-shell[data-app-area="home"] .mission-support { order: 1; }
+.app-shell[data-app-area="home"] .mobile-mission-summary { order: 2; }
+.app-shell[data-app-area="home"] .timer-panel { order: 3; }
+.app-shell[data-app-area="home"] .footer { order: 4; }

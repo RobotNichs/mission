@@ -1,5 +1,6 @@
+import { screen, within } from './services/testNavigation'
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import GamificationDebug from './components/GamificationDebug'

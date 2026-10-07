@@ -30,7 +30,7 @@ export default function GamificationPanel({ state, rewardNotice, coreRef, sectio
   const equippedOrb = getEquippedOrb(state)
 
   return (
-    <section hidden={hidden} ref={sectionRef} className="gamification-panel mission-core-panel" aria-label="Dein Mission-Fortschritt">
+    <section data-nav-area="home" hidden={hidden} ref={sectionRef} className="gamification-panel mission-core-panel" aria-label="Dein Mission-Fortschritt">
       <header className="mission-core-heading"><p className="section-kicker">DEIN LANGFRISTIGER FORTSCHRITT</p><h2>Mission Core</h2></header>
       <div className="core-column">
         <div ref={coreRef} className={`mission-core core-orb-${state.equippedOrbId ? equippedOrb.rarity : 'default'} core-effect-${state.selectedCoreEffectId}`}

@@ -1,4 +1,4 @@
-export default function UiIcon({ name }: { name: 'coin' | 'collection' | 'close' | 'help' | 'home' | 'plan' | 'progress' }) {
+export default function UiIcon({ name }: { name: 'coin' | 'collection' | 'close' | 'help' | 'home' | 'plan' | 'progress' | 'projects' | 'feedback' }) {
   return <svg className={`ui-icon icon-${name}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
     {name === 'coin' && <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="6" /><path d="M12 8v8M9.5 10h4a1.5 1.5 0 010 3h-3a1.5 1.5 0 000 3" /></>}
@@ -8,5 +8,7 @@ export default function UiIcon({ name }: { name: 'coin' | 'collection' | 'close'
     {name === 'home' && <><path d="M3 10l9-7 9 7M5 9v12h14V9M9 21v-8h6v8" /></>}
     {name === 'plan' && <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 7h6M9 12h6M9 17h4" /></>}
     {name === 'progress' && <><path d="M4 4v16h16M8 16v-4M13 16V8M18 16V5" /></>}
+    {name === 'projects' && <><path d="M3 7h7l2-3h9v16H3zM7 12h10M7 16h6" /></>}
+    {name === 'feedback' && <path d="M4 4h16v12H9l-5 4V4zM8 8h8M8 12h5" />}
   </svg>
 }

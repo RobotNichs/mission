@@ -1,5 +1,6 @@
+import { screen } from './services/testNavigation'
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import App from './App'
 import { createTestLocks } from './services/testLocks'

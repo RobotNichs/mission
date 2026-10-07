@@ -1,3 +1,4 @@
+import LoadingStatus from './LoadingStatus'
 import ProjectSessionForm from './ProjectSessionForm'
 import { currentProjectContext, type ProjectSessionInput } from '../services/projectMission'
 import { useEffect, useRef, useState } from 'react'
@@ -20,10 +21,12 @@ export default function LongTermProjects({enabled,onBusy,onMission,revision=0}:{
  const [notice,setNotice]=useState(loaded.damaged ? 'Projektspeicher beschädigt. Die Daten wurden nicht überschrieben.' : loaded.rejected ? loaded.rejected+' beschädigte Projekte wurden beim Laden ausgelassen.' : '')
  const [busy,setBusy]=useState(false)
  const available=useRef(enabled); available.current=enabled
- const alive=useRef(true)
+ const alive=useRef(true),inFlight=useRef(false)
  useEffect(()=>{alive.current=true; return()=>{alive.current=false}},[])
  useEffect(()=>{setProjects(loadProjects().projects)},[revision])
  const current=projects.find(p=>p.id===selected)
+ const [expanded,setExpanded]=useState<Record<string,boolean>>({})
+ const phaseId=current?.roadmap.phases.find(p=>p.milestones.some(m=>m.status!=='completed'))?.id ?? current?.roadmap.phases.at(-1)?.id
  const disabled=!enabled || busy || loaded.damaged
  function patch(p:Partial<ProjectInput>) {setDraft(d=>({...d,...p}))}
  function start() {setDailyProject(null);setEditing(null);setSelected(null);setDraft(structuredClone(emptyInput));setStep(0);setNotice('')}
@@ -33,18 +36,18 @@ export default function LongTermProjects({enabled,onBusy,onMission,revision=0}:{
   try {setProjects(saveProject(p));setSelected(p.id);setStep(null);setEditing(null);setNotice('Projekt lokal gespeichert.')} catch(e) {setNotice(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.')}
  }
  async function submit() {
-  if(disabled) return
+  if(disabled || inFlight.current) return
   try {
    const sameDate=editing?.duration.type === 'date' && draft.duration.type === 'date' && editing.duration.targetDate === draft.duration.targetDate
    const safe=readProjectInput(draft,sameDate ? editing.createdAt.slice(0,10) : undefined)
    if(editing) {store(readProject({...editing,...safe,updatedAt:new Date().toISOString()}));return}
-   setBusy(true);onBusy?.(true)
+   inFlight.current=true;setBusy(true);onBusy?.(true)
    const result=await generateProjectRoadmap(safe)
    if(!alive.current || !available.current) return
    const project=createProject(safe,result.roadmap)
    setProjects(saveProject(project));setSelected(project.id);setStep(null);setNotice(result.notice)
   } catch(e) {if(alive.current) setNotice(e instanceof Error ? e.message : 'Erstellen fehlgeschlagen.')}
-  finally {if(alive.current) setBusy(false);onBusy?.(false)}
+  finally {inFlight.current=false;if(alive.current) setBusy(false);onBusy?.(false)}
  }
  function roadmap(change:(r:LongTermRoadmap)=>LongTermRoadmap) {setEditing(p=>p ? {...p,roadmap:change(p.roadmap)} : p)}
  function next() {
@@ -52,23 +55,24 @@ export default function LongTermProjects({enabled,onBusy,onMission,revision=0}:{
   if(step === 1 && draft.startingLevel.type==='custom' && !draft.startingLevel.description?.trim()) {setNotice('Bitte beschreibe deine Ausgangslage.');return}
   setNotice('');setStep(s=>Math.min(2,(s ?? 0)+1))
  }
- return <section className="projects-panel" aria-labelledby="projects-title">
-  <header><p className="section-kicker">Langfristiger Lernweg</p><h2 id="projects-title">Langzeitprojekte</h2><p>Zusätzlich zu deinen schnellen Missionen: bearbeitbare Phasen und Meilensteine, lokal gespeichert.</p>
+ return <section aria-busy={busy} className="projects-panel" aria-labelledby="projects-title">
+  <header><p className="section-kicker">Langfristiger Lernweg</p><h2 id="projects-title">Langzeitprojekte</h2>
    {step===null && <button type="button" className="primary-button" disabled={disabled || projects.length>=MAX_PROJECTS} onClick={start}>Langzeitprojekt erstellen</button>}
   </header>
+  {busy && <LoadingStatus text="Roadmap wird erstellt …" />}
   {notice && <p role={enabled ? "status" : undefined}>{notice}</p>}
   {step===null && dailyProject && onMission && <ProjectSessionForm enabled={!disabled} onCancel={()=>setDailyProject(null)} onCreate={async input=>{const used=await onMission(dailyProject,input);if(used)setDailyProject(null);return used}}/>}
   {step===null && !dailyProject && <><ul className="project-list">{projects.map(p=><li key={p.id}><button type="button" className="focus-leave" aria-pressed={selected===p.id} onClick={()=>setSelected(p.id)}>{p.title} · {statuses.find(([s])=>s===p.status)?.[1]}</button></li>)}</ul>
-   {current && <article className="project-detail"><h3>{current.title}</h3><p>{current.goal}</p><dl><dt>Ausgangslage</dt><dd>{levels.find(([s])=>s===current.startingLevel.type)?.[1]} {current.startingLevel.description}</dd>{current.startingLevel.priorKnowledge && <><dt>Was du schon kannst</dt><dd>{current.startingLevel.priorKnowledge}</dd></>}<dt>Zeithorizont</dt><dd>{durationLabel(current.duration)}</dd><dt>Wochenzeit</dt><dd>{current.weeklyMinutes} Minuten</dd><dt>Lerntage (ungefähr)</dt><dd>{current.daysPerWeek ?? 'Keine Angabe'}</dd><dt>Lernkontext</dt><dd>{[environmentOptions.find(([k])=>k===current.learningContext.environment)?.[1],purposeOptions.find(([k])=>k===current.learningContext.purpose)?.[1],...(current.learningContext.materials ?? []).map(k=>materialOptions.find(([id])=>id===k)?.[1]),current.learningContext.materialsDetails].filter(Boolean).join(' · ') || 'Keine Angabe'}</dd></dl>
+   {current && <article className="project-detail"><h3>{current.title}</h3><p>{current.goal}</p><p className="project-meta">{statuses.find(([s])=>s===current.status)?.[1]} · {current.weeklyMinutes} Min / Woche · {durationLabel(current.duration)}</p><details><summary>Projektangaben</summary><dl><dt>Ausgangslage</dt><dd>{levels.find(([s])=>s===current.startingLevel.type)?.[1]} {current.startingLevel.description}</dd>{current.startingLevel.priorKnowledge && <><dt>Was du schon kannst</dt><dd>{current.startingLevel.priorKnowledge}</dd></>}<dt>Zeithorizont</dt><dd>{durationLabel(current.duration)}</dd><dt>Wochenzeit</dt><dd>{current.weeklyMinutes} Minuten</dd><dt>Lerntage (ungefähr)</dt><dd>{current.daysPerWeek ?? 'Keine Angabe'}</dd><dt>Lernkontext</dt><dd>{[environmentOptions.find(([k])=>k===current.learningContext.environment)?.[1],purposeOptions.find(([k])=>k===current.learningContext.purpose)?.[1],...(current.learningContext.materials ?? []).map(k=>materialOptions.find(([id])=>id===k)?.[1]),current.learningContext.materialsDetails].filter(Boolean).join(' · ') || 'Keine Angabe'}</dd></dl></details>
     <button type="button" className="focus-leave" disabled={disabled} onClick={()=>edit(current)}>Projekt bearbeiten</button>
     {onMission && current.status==='active' && <button type="button" className="primary-button" disabled={disabled} onClick={()=>{try{currentProjectContext(current.id);setDailyProject(current.id);setNotice('')}catch(e){setNotice(e instanceof Error ? e.message : 'Projekt nicht verfügbar.')}}}>Heutige Mission erstellen</button>}
-    <p>Roadmap-Vorschlag · Zeitrahmen sind keine Aussage über deinen Lernfortschritt.</p><p>{current.roadmap.summary}</p>
-    <ol className="project-phases">{current.roadmap.phases.map(p=><li key={p.id}><h4>{p.title}</h4>{p.expectedDuration && <p className="field-hint">Ungefähr {p.expectedDuration.value} {p.expectedDuration.type==='days' ? 'Tage' : 'Wochen'}</p>}<p>{p.description}</p><ul>{p.milestones.map(m=><li key={m.id}><strong>{m.title}</strong><label className="project-milestone-status"><input type="checkbox" disabled={disabled} checked={m.status==='completed'} aria-label={'Meilenstein erledigt: '+m.title} onChange={e=>{
+    <details><summary>Über diesen Roadmap-Vorschlag</summary><p>Zeitrahmen sind keine Aussage über deinen Lernfortschritt.</p><p>{current.roadmap.summary}</p></details>
+    <ol className="project-phases">{current.roadmap.phases.map(p=><li key={p.id}><button type="button" className="phase-toggle" aria-expanded={expanded[p.id] ?? p.id===phaseId} aria-controls={'phase-'+p.id} onClick={()=>setExpanded(v=>({...v,[p.id]:!(v[p.id] ?? p.id===phaseId)}))}><strong>{p.title}</strong><span>{p.milestones.filter(m=>m.status==='completed').length} / {p.milestones.length} Meilensteine erledigt · {p.id===phaseId ? 'Aktuelle Etappe' : p.milestones.every(m=>m.status==='completed') ? 'Abgeschlossen' : 'Weitere Etappe'}</span></button><div id={'phase-'+p.id} hidden={!(expanded[p.id] ?? p.id===phaseId)}>{p.expectedDuration && <p className="field-hint">Ungefähr {p.expectedDuration.value} {p.expectedDuration.type==='days' ? 'Tage' : 'Wochen'}</p>}<p>{p.description}</p><ul>{p.milestones.map(m=><li key={m.id}><strong>{m.title}</strong><label className="project-milestone-status"><input type="checkbox" disabled={disabled} checked={m.status==='completed'} aria-label={'Meilenstein erledigt: '+m.title} onChange={e=>{
       if(disabled)return
       try {const latest=loadProjects();if(latest.damaged)throw new Error('Der Projektspeicher ist beschädigt.');const project=latest.projects.find(v=>v.id===current.id);if(!project)throw new Error('Das Projekt ist nicht mehr vorhanden.');setProjects(saveProject({...project,updatedAt:new Date().toISOString(),roadmap:{...project.roadmap,phases:project.roadmap.phases.map(v=>v.id===p.id ? {...v,milestones:v.milestones.map(w=>w.id===m.id ? {...w,status:e.target.checked ? 'completed' as const : 'pending' as const} : w)} : v)}}));setNotice('Meilensteinstatus lokal gespeichert.')}catch(e){setNotice(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.')}
-     }}/>{m.status==='completed' ? 'Erledigt' : 'Offen'}</label>{m.description && <p>{m.description}</p>}</li>)}</ul></li>)}</ol>
-    {current.learningState && <details><summary>Lernstand</summary><p><strong>Bekannt:</strong> {current.learningState.known.join(' · ') || 'Keine bestätigten Angaben'}</p><p><strong>In Arbeit:</strong> {current.learningState.inProgress.join(' · ') || 'Keine Angaben'}</p><p><strong>Unsicher:</strong> {current.learningState.weak.join(' · ') || 'Keine Angaben'}</p>{current.learningState.nextSessionNote && <p>Für die nächste Session: {current.learningState.nextSessionNote}</p>}<h4>Letzte Fortschritte</h4><ul>{current.learningState.recentProgress.map(r=><li key={r.id}>{r.summary}</li>)}</ul></details>}
-    {current.manualNotes && <><h4>Eigene Notizen</h4><p className="project-notes">{current.manualNotes}</p></>}
+     }}/>{m.status==='completed' ? 'Erledigt' : 'Offen'}</label>{m.description && <p>{m.description}</p>}</li>)}</ul></div></li>)}</ol>
+    {current.learningState && <details><summary>Lernstand · {current.learningState.known.length} bekannt · {current.learningState.inProgress.length} in Arbeit · {current.learningState.weak.length} unsicher</summary><p><strong>Bekannt:</strong> {current.learningState.known.join(' · ') || 'Keine bestätigten Angaben'}</p><p><strong>In Arbeit:</strong> {current.learningState.inProgress.join(' · ') || 'Keine Angaben'}</p><p><strong>Unsicher:</strong> {current.learningState.weak.join(' · ') || 'Keine Angaben'}</p>{current.learningState.nextSessionNote && <p>Für die nächste Session: {current.learningState.nextSessionNote}</p>}<h4>Letzte Fortschritte</h4><ul>{current.learningState.recentProgress.map(r=><li key={r.id}>{r.summary}</li>)}</ul></details>}
+    {current.manualNotes && <details><summary>Eigene Notizen</summary><p className="project-notes">{current.manualNotes}</p></details>}
    </article>}
   </>}
   {step!==null && <form className="project-form" onSubmit={e=>{e.preventDefault();if(step<2)next();else void submit()}}><fieldset disabled={disabled}><legend>{editing ? 'Projekt bearbeiten' : 'Neues Langzeitprojekt'} · Schritt {step+1} von 3</legend>
@@ -92,7 +96,7 @@ export default function LongTermProjects({enabled,onBusy,onMission,revision=0}:{
       </fieldset></details>)}<p className="field-hint">Maximal {MAX_PHASES} Phasen und {MAX_MILESTONES} Meilensteine je Phase. Manuelle Änderungen benötigen keine KI.</p>
      </details></>}
    </>}
-   <div className="project-actions">{step>0 && <button type="button" onClick={()=>setStep(step-1)}>Zurück</button>}<button type="submit" className="primary-button">{busy ? 'Roadmap wird erstellt …' : step<2 ? 'Weiter' : editing ? 'Projekt speichern' : 'Roadmap erstellen und speichern'}</button><button type="button" onClick={()=>{setStep(null);setEditing(null)}}>Abbrechen</button></div>
+   <div className="project-actions">{step>0 && <button type="button" onClick={()=>setStep(step-1)}>Zurück</button>}<button type="submit" className="primary-button" disabled={disabled}>{busy ? 'Roadmap wird erstellt …' : step<2 ? 'Weiter' : editing ? 'Projekt speichern' : 'Roadmap erstellen und speichern'}</button><button type="button" onClick={()=>{setStep(null);setEditing(null)}}>Abbrechen</button></div>
   </fieldset></form>}
  </section>
 }

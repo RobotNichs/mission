@@ -1,5 +1,6 @@
+import { screen, within } from '../services/testNavigation'
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import MissionLibrary from './MissionLibrary'
 import App from '../App'
