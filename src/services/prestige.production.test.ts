@@ -14,7 +14,8 @@ it('entfernt die Prestige-Vorschau aus einem echten Produktionsbundle', async ()
   const source = outputs.flatMap(output => 'output' in output ? output.output : [])
     .map(chunk => chunk.type === 'chunk' ? chunk.code : '').join('\n')
   expect(source).toContain('Maximaler Prestige-Rang V')
-  for (const marker of ['Mission Companion Base', 'companion-preview', 'companion-expression', 'companion-breathe', 'companion-level-up', 'companion-curious-gaze', 'companion-skin-grid', '#FFF0D5', 'Reduzierte Bewegung simulieren']) {
+  // Skin configuration is now required for backup validation; the renderer and preview remain isolated.
+  for (const marker of ['Mission Companion Base', 'companion-preview', 'companion-expression', 'companion-breathe', 'companion-level-up', 'companion-curious-gaze', 'companion-skin-grid', 'Reduzierte Bewegung simulieren']) {
     expect(source, `Keine lokale Companion-Preview: ${marker}`).not.toContain(marker)
   }
   const assets = outputs.flatMap(output => 'output' in output ? output.output : [])
