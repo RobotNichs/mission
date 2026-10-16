@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import MissionCompanion, { type CompanionState } from './MissionCompanion'
 import './CompanionPreview.css'
+import { companionSkins, type CompanionSkinId } from './companionSkins'
 
 export default function CompanionPreview() {
   const [success, setSuccess] = useState(false)
@@ -9,11 +10,25 @@ export default function CompanionPreview() {
   const [smallState, setSmallState] = useState<CompanionState>('idle')
   const states: CompanionState[] = ['idle', 'focus', 'pause', 'error', 'offline', 'success', 'levelUp']
   const [reducedMotion, setReducedMotion] = useState(false)
+  const [skinState, setSkinState] = useState<CompanionState>('idle')
   return <main className="companion-preview" data-reduced-motion={reducedMotion}>
     <header><p className="section-kicker">LOKALE DESIGN-PREVIEW</p><h1>Mission Companion Base</h1>
       <p>Isolierte Darstellung ohne Mission, Vergütung oder gespeicherte Änderungen.</p><a href="/">Zur App</a>
       <label className="companion-preview-motion"><input type="checkbox" checked={reducedMotion} onChange={event => setReducedMotion(event.target.checked)} />Reduzierte Bewegung simulieren</label>
       <p>Die Systempräferenz für reduzierte Bewegung gilt unabhängig vom Schalter.</p></header>
+    <section className="companion-skin-comparison" aria-labelledby="skin-comparison-title">
+      <h2 id="skin-comparison-title">Starter-Skins</h2>
+      <label className="companion-preview-small-state">Zustand für alle Starter-Skins<select value={skinState} onChange={event => {
+        const state = states.find(value => value === event.target.value)
+        if (state) setSkinState(state)
+      }}>{states.map(state => <option key={state} value={state}>{state}</option>)}</select></label>
+      <div className="companion-skin-grid">{(Object.keys(companionSkins) as CompanionSkinId[]).map(skin => <figure key={skin}>
+        <h3>{companionSkins[skin].name}</h3>
+        <MissionCompanion skin={skin} state={skinState} size={120} label={`${companionSkins[skin].name}, 120 px`} />
+        <MissionCompanion skin={skin} state={skinState} size={60} label={`${companionSkins[skin].name}, 60 px`} />
+        <figcaption>{skin === 'luna' ? 'Classic Mission' : skin === 'milo' ? 'Warm Cream' : 'Galaxy'} · 120 / 60 px</figcaption>
+      </figure>)}</div>
+    </section>
     <div className="companion-preview-grid">
       <figure><MissionCompanion label="Companion: aufmerksam" /><MissionCompanion size={60} label="Companion: aufmerksam, 60 px" /><figcaption>Idle · 120 / 60 px</figcaption></figure>
       <figure><MissionCompanion state="focus" label="Companion: konzentriert" /><MissionCompanion size={60} state="focus" label="Companion: konzentriert, 60 px" /><figcaption>Focus · 120 / 60 px</figcaption></figure>

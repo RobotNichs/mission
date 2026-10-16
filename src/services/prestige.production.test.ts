@@ -14,7 +14,7 @@ it('entfernt die Prestige-Vorschau aus einem echten Produktionsbundle', async ()
   const source = outputs.flatMap(output => 'output' in output ? output.output : [])
     .map(chunk => chunk.type === 'chunk' ? chunk.code : '').join('\n')
   expect(source).toContain('Maximaler Prestige-Rang V')
-  for (const marker of ['Mission Companion Base', 'companion-preview', 'companion-expression', 'companion-breathe', 'companion-level-up', 'companion-curious-gaze', 'Reduzierte Bewegung simulieren']) {
+  for (const marker of ['Mission Companion Base', 'companion-preview', 'companion-expression', 'companion-breathe', 'companion-level-up', 'companion-curious-gaze', 'companion-skin-grid', '#FFF0D5', 'Reduzierte Bewegung simulieren']) {
     expect(source, `Keine lokale Companion-Preview: ${marker}`).not.toContain(marker)
   }
   const assets = outputs.flatMap(output => 'output' in output ? output.output : [])
@@ -23,6 +23,7 @@ it('entfernt die Prestige-Vorschau aus einem echten Produktionsbundle', async ()
     expect(String(asset.source)).not.toContain('companion-preview')
     expect(String(asset.source)).not.toContain('companion-level-up')
     expect(String(asset.source)).not.toContain('companion-curious-gaze')
+    expect(String(asset.source)).not.toContain('companion-skin-grid')
   }
   for (const marker of ['Globalen Test-Level verwenden', 'Test-Level zurücksetzen', 'onDisplayLevelChange', 'debug-level-preview']) {
     expect(source.includes(marker), `Kein globaler Test-Level: ${marker}`).toBe(false)

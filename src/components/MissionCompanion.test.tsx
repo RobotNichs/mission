@@ -4,6 +4,7 @@ import { afterEach, expect, expectTypeOf, it, vi } from 'vitest'
 import type { ComponentProps } from 'react'
 import MissionCompanion, { type CompanionState } from './MissionCompanion'
 import CompanionPreview from './CompanionPreview'
+import type { CompanionSkinId } from './companionSkins'
 
 const states = ['idle', 'focus', 'success', 'pause', 'error', 'offline', 'levelUp'] as const satisfies readonly CompanionState[]
 
@@ -116,7 +117,7 @@ it('offers all preview variants without storage writes or network requests', () 
   const save = vi.spyOn(Storage.prototype, 'setItem')
   const fetch = vi.fn(); vi.stubGlobal('fetch', fetch)
   render(<CompanionPreview />)
-  expect(screen.getAllByRole('img')).toHaveLength(17)
+  expect(screen.getAllByRole('img')).toHaveLength(23)
   for (const state of states) expect(document.querySelector(`.companion-preview [data-state="${state}"]`)).toBeTruthy()
   expect(screen.getByLabelText('Companion: Erfolg').getAttribute('data-animated')).toBe('false')
   expect(screen.getByLabelText('Companion: Level-Up').getAttribute('data-animated')).toBe('false')
@@ -151,7 +152,7 @@ it('preserves the prop contract and excludes unsupported state names at type lev
   expectTypeOf<ComponentProps<typeof MissionCompanion>['state']>().toEqualTypeOf<CompanionState | undefined>()
   expectTypeOf<'sleep'>().not.toMatchTypeOf<CompanionState>()
   expectTypeOf<ComponentProps<typeof MissionCompanion>>().toEqualTypeOf<{
-    size?: number; state?: CompanionState; animated?: boolean; className?: string; label?: string; silhouette?: boolean
+    size?: number; state?: CompanionState; animated?: boolean; className?: string; label?: string; silhouette?: boolean; skin?: CompanionSkinId
   }>()
 })
 it('allows every state transition without duplicate features, changing the body or adding live regions', () => {

@@ -11,3 +11,7 @@
 .companion-preview[data-reduced-motion='true'] .mission-companion * { animation: none !important; }
 .companion-preview-small-state { display: grid; gap: 8px; width: 100%; font-size: 13px; color: var(--muted); }
 .companion-preview-small-state select { max-width: 100%; min-height: 44px; padding: 8px; appearance: auto; }
+.companion-skin-comparison { margin-top: 32px; }
+.companion-skin-comparison > label { max-width: 320px; }
+.companion-skin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; margin-top: 16px; }
+.companion-skin-grid h3 { margin: 0; font-size: 20px; font-weight: 600; }

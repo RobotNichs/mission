@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import './MissionCompanion.css'
+import { companionSkins, type CompanionSkinId } from './companionSkins'
 
 export type CompanionState = 'idle' | 'focus' | 'success' | 'pause' | 'error' | 'offline' | 'levelUp'
 type Props = {
+  skin?: CompanionSkinId
   size?: number
   state?: CompanionState
   animated?: boolean
@@ -13,7 +15,8 @@ type Props = {
   silhouette?: boolean
 }
 
-export default function MissionCompanion({ size = 120, state = 'idle', animated = true, className = '', label, silhouette = false }: Props) {
+export default function MissionCompanion({ size = 120, state = 'idle', animated = true, className = '', label, silhouette = false, skin = 'luna' }: Props) {
+  const palette = companionSkins[skin]
   const id = useId().replace(/:/g, '')
   const root = useRef<HTMLSpanElement>(null)
   const [visible, setVisible] = useState(true)
@@ -42,17 +45,27 @@ export default function MissionCompanion({ size = 120, state = 'idle', animated 
     levelUp: 'M91 131Q100 135 109 131Q108 145 100 146Q92 144 91 131Z',
   }
   const closedEyes = state === 'success' || state === 'offline'
-  return <span ref={root} className={`mission-companion ${className}`} data-state={state}
+  return <span ref={root} className={`mission-companion ${className}`} data-state={state} data-skin={skin}
     data-animated={animated && !silhouette} data-motion={visible && pageVisible ? 'running' : 'paused'}
     data-silhouette={silhouette} data-small={small} role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true}
     style={{ width: dimension, aspectRatio: '1' }}>
     <svg viewBox="0 0 200 200" fill="none" aria-hidden="true" focusable="false">
       <defs>
         <linearGradient id={`${id}-coat`} x1="62" y1="38" x2="138" y2="171" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#3D4B6B" /><stop offset=".55" stopColor="#2E3A56" /><stop offset="1" stopColor="#1B2336" />
+          <stop stopColor={palette.coat[0]} /><stop offset=".55" stopColor={palette.coat[1]} /><stop offset="1" stopColor={palette.coat[2]} />
         </linearGradient>
-        <radialGradient id={`${id}-halo`}><stop stopColor="#8A7BE0" stopOpacity=".16" /><stop offset="1" stopColor="#8A7BE0" stopOpacity="0" /></radialGradient>
-        <radialGradient id={`${id}-warmth`}><stop stopColor={state === 'levelUp' ? '#F7E6D3' : '#F5BEA4'} stopOpacity=".55" /><stop offset="1" stopColor={state === 'levelUp' ? '#8A7BE0' : '#F5BEA4'} stopOpacity="0" /></radialGradient>
+        <radialGradient id={`${id}-halo`}><stop stopColor={palette.halo} stopOpacity=".16" /><stop offset="1" stopColor={palette.halo} stopOpacity="0" /></radialGradient>
+        <radialGradient id={`${id}-warmth`}><stop stopColor={state === 'levelUp' ? palette.levelLight[0] : palette.successLight} stopOpacity=".55" /><stop offset="1" stopColor={state === 'levelUp' ? palette.levelLight[1] : palette.successLight} stopOpacity="0" /></radialGradient>
+        {palette.surface && <>
+          <radialGradient id={`${id}-surface-light`} cx={palette.surface.cx} cy={palette.surface.cy} r="75%"><stop stopColor={palette.surface.color} stopOpacity={palette.surface.opacity} /><stop offset="1" stopColor={palette.surface.color} stopOpacity="0" /></radialGradient>
+          <pattern id={`${id}-surface`} width="200" height="200" patternUnits="userSpaceOnUse">
+            <rect width="200" height="200" fill={`url(#${id}-coat)`} />
+            <rect width="200" height="200" fill={`url(#${id}-surface-light)`} />
+            {palette.surface.points && !small && <g className="companion-skin-points" fill={palette.surface.color} opacity=".48">
+              <circle cx="44" cy="88" r="1" /><circle cx="153" cy="91" r="1.2" /><circle cx="59" cy="151" r=".8" /><circle cx="139" cy="151" r="1" />
+            </g>}
+          </pattern>
+        </>}
       </defs>
       {!silhouette && <ellipse cx="100" cy="113" rx="92" ry="82" fill={`url(#${id}-halo)`} />}
       {/* Keyed only by expression: repeated success renders cannot restart the one-shot. */}
@@ -60,37 +73,37 @@ export default function MissionCompanion({ size = 120, state = 'idle', animated 
         <g className="companion-breath">
           {!silhouette && <ellipse className="companion-warmth" cx="100" cy="118" rx="88" ry="80" fill={`url(#${id}-warmth)`} opacity="0" />}
           <path className="companion-contour" d="M36 78C29 58 30 34 37 28C42 25 61 37 73 47C88 43 111 43 126 48C139 37 155 26 161 31C168 40 169 62 163 82C175 99 179 122 169 142C159 164 132 175 101 175C69 176 41 166 30 146C18 125 23 98 36 78Z"
-            fill={silhouette ? 'currentColor' : `url(#${id}-coat)`} stroke={silhouette ? undefined : '#667397'} strokeWidth="1.6" />
+            fill={silhouette ? 'currentColor' : `url(#${id}-${palette.surface ? 'surface' : 'coat'})`} stroke={silhouette ? undefined : palette.contour} strokeWidth="1.6" />
           {!silhouette && <>
-            <path className="companion-inner-ear companion-inner-ear-left" d="M40 43L44 70L60 53Z" fill="#8A7BE0" opacity=".32" />
-            <path className="companion-inner-ear" d="M156 46L141 56L157 72Z" fill="#8A7BE0" opacity=".32" />
-            <path d="M86 73Q87 67 90 64Q94 65 100 71Q105 65 109 65Q112 68 113 73" stroke="#A99BEF" strokeWidth="3.8" opacity=".88" strokeLinecap="round" strokeLinejoin="round" />
+            <path className="companion-inner-ear companion-inner-ear-left" d="M40 43L44 70L60 53Z" fill={palette.ear} opacity={palette.earOpacity} />
+            <path className="companion-inner-ear" d="M156 46L141 56L157 72Z" fill={palette.ear} opacity={palette.earOpacity} />
+            <path d="M86 73Q87 67 90 64Q94 65 100 71Q105 65 109 65Q112 68 113 73" stroke={palette.mark} strokeWidth="3.8" opacity=".88" strokeLinecap="round" strokeLinejoin="round" />
             {state === 'levelUp' ? <g className="companion-eyes companion-level-eyes">
               <g className="companion-level-open" visibility="hidden" opacity="0">
-                <ellipse className="companion-eye-surface" cx="69" cy="105" rx="14" ry="12" fill="#F7E6D3" />
-                <ellipse className="companion-eye-surface" cx="131" cy="105" rx="14" ry="12" fill="#F7E6D3" />
-                <g className="companion-level-pupils" fill="#1B2336" visibility="hidden"><ellipse cx="69" cy="105" rx="3.5" ry="6" /><ellipse cx="131" cy="105" rx="3.5" ry="6" /></g>
+                <ellipse className="companion-eye-surface" stroke={palette.eyeOutline} strokeWidth={palette.eyeOutline ? .9 : undefined} cx="69" cy="105" rx="14" ry="12" fill={palette.eye} />
+                <ellipse className="companion-eye-surface" stroke={palette.eyeOutline} strokeWidth={palette.eyeOutline ? .9 : undefined} cx="131" cy="105" rx="14" ry="12" fill={palette.eye} />
+                <g className="companion-level-pupils" fill={palette.pupil} visibility="hidden"><ellipse cx="69" cy="105" rx="3.5" ry="6" /><ellipse cx="131" cy="105" rx="3.5" ry="6" /></g>
                 {!small && <g className="companion-level-hearts" visibility="hidden">
-                  <path d="M69 111C65 108 61 104 63 101C64 98 68 98 69 101C70 98 74 98 75 101C77 104 73 108 69 111Z" fill="#F5BEA4" />
-                  <path d="M131 111C127 108 123 104 125 101C126 98 130 98 131 101C132 98 136 98 137 101C139 104 135 108 131 111Z" fill="#A99BEF" />
+                  <path d="M69 111C65 108 61 104 63 101C64 98 68 98 69 101C70 98 74 98 75 101C77 104 73 108 69 111Z" fill={palette.hearts[0]} />
+                  <path d="M131 111C127 108 123 104 125 101C126 98 130 98 131 101C132 98 136 98 137 101C139 104 135 108 131 111Z" fill={palette.hearts[1]} />
                 </g>}
               </g>
-              <g className="companion-level-rest" visibility="visible" stroke="#F7E6D3" strokeWidth="4" strokeLinecap="round">
+              <g className="companion-level-rest" visibility="visible" stroke={palette.closedEye} strokeWidth="4" strokeLinecap="round">
                 <path d="M56 106Q68 90 81 105M119 105Q132 90 144 106" />
               </g>
-            </g> : closedEyes ? <g className="companion-eyes" stroke="#F7E6D3" strokeWidth="4" strokeLinecap="round">
+            </g> : closedEyes ? <g className="companion-eyes" stroke={palette.closedEye} strokeWidth="4" strokeLinecap="round">
               <path d={state === 'offline' ? 'M58 105Q69 111 80 105M120 105Q131 111 142 105'
                 : 'M57 106Q68 96 80 105M120 105Q132 96 143 106'} />
             </g> : <g className="companion-eyes">
-              <path className="companion-eye-surface" d={leftEye} transform={eyeTransform} fill="#F7E6D3" />
-              <path className="companion-eye-surface" d={leftEye} transform={`translate(200 0) scale(-1 1) ${eyeTransform}`} fill="#F7E6D3" />
+              <path className="companion-eye-surface" stroke={palette.eyeOutline} strokeWidth={palette.eyeOutline ? .9 : undefined} d={leftEye} transform={eyeTransform} fill={palette.eye} />
+              <path className="companion-eye-surface" stroke={palette.eyeOutline} strokeWidth={palette.eyeOutline ? .9 : undefined} d={leftEye} transform={`translate(200 0) scale(-1 1) ${eyeTransform}`} fill={palette.eye} />
               <g className="companion-gaze">
-              <ellipse cx="69" cy="106" rx="3.5" ry={state === 'focus' ? 3.5 : 6} fill="#1B2336" /><ellipse cx="131" cy="106" rx="3.5" ry={state === 'focus' ? 3.5 : 6} fill="#1B2336" />
-              <circle cx="70" cy="103.5" r="1.3" fill="#FFF8EF" /><circle cx="132" cy="103.5" r="1.3" fill="#FFF8EF" />
+              <ellipse cx="69" cy="106" rx="3.5" ry={state === 'focus' ? 3.5 : 6} fill={palette.pupil} /><ellipse cx="131" cy="106" rx="3.5" ry={state === 'focus' ? 3.5 : 6} fill={palette.pupil} />
+              <circle cx="70" cy="103.5" r="1.3" fill={palette.glint} /><circle cx="132" cy="103.5" r="1.3" fill={palette.glint} />
               </g>
             </g>}
-            <path d="M96 124Q100 122 104 124L100 129Z" fill="#F5BEA4" />
-            <path className="companion-mouth" d={mouth[state]} fill={state === 'levelUp' ? '#F5BEA4' : state === 'error' ? '#1B2336' : 'none'} stroke="#C8BECD" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M96 124Q100 122 104 124L100 129Z" fill={palette.nose} />
+            <path className="companion-mouth" d={mouth[state]} fill={state === 'levelUp' ? palette.mouthFill : state === 'error' ? palette.pupil : 'none'} stroke={palette.mouth} strokeWidth="1.8" strokeLinecap="round" />
           </>}
         </g>
       </g>
