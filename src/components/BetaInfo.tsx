@@ -39,7 +39,7 @@ export default function BetaInfo({ enabled, onClose, reload = () => location.rel
       if (file.size > MAX_BACKUP_BYTES) throw new Error('size')
       const backup = parseBackup(await file.text())
       if (sequence === fileSequence.current) setPending(backup)
-    } catch { if (sequence === fileSequence.current) setNotice('Ungültiges Backup: Nur Mission-Backups der Version 1 bis 2 MiB sind erlaubt. Es wurde nichts übernommen.') }
+    } catch { if (sequence === fileSequence.current) setNotice('Ungültiges Backup: Nur Mission-Backups der Versionen 1 und 2 bis 2 MiB sind erlaubt. Es wurde nichts übernommen.') }
   }
   function confirm() {
     if (!pending || !enabled || busy) return

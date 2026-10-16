@@ -17,7 +17,7 @@ function fixture() {
 it('exports versioned mission, progress, goals, templates and settings without foreign secrets', () => {
   fixture(); localStorage.setItem('GROQ_API_KEY', 'SYNTHETIC-ONLY'); localStorage.setItem('other-app', 'private')
   const raw = exportBackup(), b = parseBackup(raw)
-  expect(b.format).toBe('mission-backup'); expect(b.version).toBe(1); expect(Object.keys(b.data)).toHaveLength(6)
+  expect(b.format).toBe('mission-backup'); expect(b.version).toBe(2); expect(Object.keys(b.data)).toHaveLength(6)
   expect(raw).not.toContain('SYNTHETIC-ONLY'); expect(raw).not.toContain('other-app')
 })
 it('restores exact focus, coins, mission ids and paused timer data without rewards', () => {
@@ -35,7 +35,7 @@ it('requires confirmation and deletes only the allowlisted Mission keys', () => 
   BACKUP_KEYS.forEach(k => expect(localStorage.getItem(k)).toBeNull())
   expect(localStorage.getItem('other-app')).toBe('keep'); expect(localStorage.getItem('mission.unknown')).toBe('keep')
 })
-it.each(['{bad', JSON.stringify({ format: 'mission-backup', version: 2, data: {} }), 'x'.repeat(MAX_BACKUP_BYTES + 1)])('rejects invalid JSON/version/oversize without modifying data', raw => {
+it.each(['{bad', JSON.stringify({ format: 'mission-backup', version: 3, exportedAt: '2026-10-16T00:00:00Z', data: {} }), 'x'.repeat(MAX_BACKUP_BYTES + 1)])('rejects invalid JSON/version/oversize without modifying data', raw => {
   fixture(); const before = exportBackup(); expect(() => parseBackup(raw)).toThrow(); expect(parseBackup(exportBackup()).data).toEqual(parseBackup(before).data)
 })
 it.each(['unknown', '__proto__', 'constructor'])('rejects unknown or dangerous keys %s', key => {

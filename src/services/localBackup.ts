@@ -13,11 +13,12 @@ import { orbCollection } from './orbCatalog'
 import { cosmeticShopItems } from './gamification'
 import { canEquipOrb } from './prestigeOrbs'
 import type { GamificationState } from '../types/gamification'
+import { COMPANION_PREFERENCE_KEY, validateCompanionPreference } from './companionPreference'
 
-export const BACKUP_KEYS = ['mission.saved-mission.v1', 'mission.gamification.v1', 'mission.statistics.v1', 'mission.templates.v1', 'mission.focus-environment.v1', 'mission.onboarding.v1', 'mission.projects.v1'] as const
+export const BACKUP_KEYS = ['mission.saved-mission.v1', 'mission.gamification.v1', 'mission.statistics.v1', 'mission.templates.v1', 'mission.focus-environment.v1', 'mission.onboarding.v1', 'mission.projects.v1', COMPANION_PREFERENCE_KEY] as const
 export const MAX_BACKUP_BYTES = 2 * 1024 * 1024
 type Data = Partial<Record<typeof BACKUP_KEYS[number], unknown>>
-export type Backup = { format: 'mission-backup'; version: 1; exportedAt: string; data: Data }
+export type Backup = { format: 'mission-backup'; version: 1 | 2; exportedAt: string; data: Data }
 function fail(): never { throw new Error('Das Backup ist ungültig oder enthält nicht unterstützte Daten. Es wurde nichts übernommen.') }
 function record(v: unknown): Record<string, unknown> { if (!v || typeof v !== 'object' || Array.isArray(v)) fail(); return v as Record<string, unknown> }
 function fields(v: unknown, allowed: string[]) { const r = record(v); if (Object.keys(r).some(k => !allowed.includes(k))) fail(); return r }
@@ -46,8 +47,8 @@ function plan(v: unknown, form = false) {
   return r
 }
 const sessionFields = ['id', 'startedAt', 'goal', 'focusSeconds', 'plannedSeconds', 'timeMode', 'completedSteps', 'totalSteps', 'focusStrategy', 'completedFocusBlocks', 'breakSeconds', 'sourceProject']
-function validateData(data: unknown): Data {
-  const d = fields(data, [...BACKUP_KEYS])
+function validateData(data: unknown, version: 1 | 2): Data {
+  const d = fields(data, BACKUP_KEYS.filter(key => version === 2 || key !== COMPANION_PREFERENCE_KEY))
   for (const [key, value] of Object.entries(d)) {
     if (key === BACKUP_KEYS[0]) {
       const r = fields(value, ['form', 'mission', 'remainingSeconds', 'elapsedSeconds', 'history', 'activeSession', 'focusBlocks'])
@@ -84,6 +85,7 @@ function validateData(data: unknown): Data {
     } else if (key === BACKUP_KEYS[3]) loadTemplates({ getItem: () => JSON.stringify(value) })
     else if (key === BACKUP_KEYS[4]) choice(value, ['still', 'deep-space', 'nebula', 'liquid'])
     else if (key === PROJECT_STORAGE_KEY) readProjectStore(value)
+    else if (key === COMPANION_PREFERENCE_KEY) { if (!validateCompanionPreference(value)) fail() }
     else { const r = fields(value, ['version', 'status']); if (r.version !== 1) fail(); choice(r.status, ['offered', 'dismissed', 'completed', 'skipped']) }
   }
   // Progress and statistics must describe the same measurement journal.
@@ -96,14 +98,14 @@ export function parseBackup(raw: string): Backup {
   if (new Blob([raw]).size > MAX_BACKUP_BYTES) fail()
   let parsed: unknown; try { parsed = JSON.parse(raw) } catch { fail() }
   const b = fields(parsed, ['format', 'version', 'exportedAt', 'data'])
-  if (b.format !== 'mission-backup' || b.version !== 1 || typeof b.exportedAt !== 'string' || !Number.isFinite(Date.parse(b.exportedAt))) fail()
-  validateData(b.data)
+  if (b.format !== 'mission-backup' || (b.version !== 1 && b.version !== 2) || typeof b.exportedAt !== 'string' || !Number.isFinite(Date.parse(b.exportedAt))) fail()
+  validateData(b.data, b.version)
   return b as Backup
 }
 export function exportBackup(storage: Storage = localStorage): string {
   const data: Data = {}
   for (const key of BACKUP_KEYS) { const raw = storage.getItem(key); if (raw !== null) data[key] = key === BACKUP_KEYS[4] ? raw : JSON.parse(raw) }
-  const raw = JSON.stringify({ format: 'mission-backup', version: 1, exportedAt: new Date().toISOString(), data }, null, 2)
+  const raw = JSON.stringify({ format: 'mission-backup', version: 2, exportedAt: new Date().toISOString(), data }, null, 2)
   parseBackup(raw); return raw
 }
 // Caller must own the existing app writer lock and keep its timer stopped.
