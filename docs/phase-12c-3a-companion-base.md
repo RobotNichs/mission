@@ -8,7 +8,7 @@ Ein isolierter React-/SVG-Prototyp, ohne Ersatz oder Migration der Orbs. `OrbVis
 <MissionCompanion size={120} state="idle" animated label="Mission Companion, aufmerksam" />
 ```
 
-`size` ist eine positive Pixelgröße (Standard 120, ungültige Zahlen fallen auf 120 zurück). `state` erlaubt `idle`, `focus`, `success`; Standard ist `idle`. `animated` ist standardmäßig aktiv. `className` ist optional. Ohne `label` ist die Instanz dekorativ und für Screenreader verborgen. `silhouette` zeigt ausschließlich dieselbe monochrome Kopfkontur ohne Gesicht oder Glow. Der Container ist auf seine verfügbare Breite begrenzt.
+`size` ist eine positive Pixelgröße (Standard 120, ungültige Zahlen fallen auf 120 zurück). `state` erlaubt seit Phase 12C.3B `idle`, `focus`, `success`, `pause`, `error`, `offline`, `levelUp`; Standard ist `idle`. `animated` ist standardmäßig aktiv. `className` ist optional. Ohne `label` ist die Instanz dekorativ und für Screenreader verborgen. `silhouette` zeigt ausschließlich dieselbe monochrome Kopfkontur ohne Gesicht oder Glow. Der Container ist auf seine verfügbare Breite begrenzt.
 
 ## Gestaltung und Bewegung
 
@@ -26,7 +26,7 @@ Bestehendes `npm run dev` verwenden und die ausgegebene lokale URL mit `?preview
 
 `http://localhost:5173/?preview=companion`
 
-Nur Vite-Dev und Loopback-Hosts sind zugelassen. Die Preview ersetzt für diesen Aufruf ausschließlich den App-Mount, ohne produktive Navigation zu erweitern. Idle, Focus, auslösbarer Success, 60 px, monochrome Silhouette und eine statische 200-px-Ansicht sind enthalten. Der Link „Zur App“ entfernt den Preview-Zugang. Der Produktionsbuild enthält weder Preview noch die aktuell ausschließlich dort verwendete Companion-Grafik und Styles. Ein gleichlautender Query-Parameter öffnet in Produktion nur die normale App.
+Nur Vite-Dev und Loopback-Hosts sind zugelassen. Die Preview ersetzt für diesen Aufruf ausschließlich den App-Mount, ohne produktive Navigation zu erweitern. Alle sieben Zustände, 60 px, monochrome Silhouette und eine statische 200-px-Ansicht sind enthalten. Success und Level-Up sind zunächst statisch und per Button auslösbar; Zurücksetzen bereitet eine neue Animation vor. „Reduzierte Bewegung simulieren“ stoppt alle Companion-Animationen in der Preview. Die tatsächliche Systempräferenz bleibt unabhängig davon wirksam. Der Link „Zur App“ entfernt den Preview-Zugang. Der Produktionsbuild enthält weder Preview noch die aktuell ausschließlich dort verwendete Companion-Grafik und Styles. Ein gleichlautender Query-Parameter öffnet in Produktion nur die normale App.
 
 ## Prüfung und Grenzen
 

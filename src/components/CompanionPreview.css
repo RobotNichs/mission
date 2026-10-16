@@ -6,3 +6,8 @@
 .companion-preview figcaption { color: var(--muted); font-size: 13px; }
 .companion-preview button { min-height: 44px; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; background: var(--surface-raised); color: var(--ink); }
 .companion-preview :is(a, button):focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.companion-preview-motion { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 16px; }
+.companion-preview-motion input { width: 18px; height: 18px; }
+.companion-preview[data-reduced-motion='true'] .mission-companion * { animation: none !important; }
+.companion-preview-small-state { display: grid; gap: 8px; width: 100%; font-size: 13px; color: var(--muted); }
+.companion-preview-small-state select { max-width: 100%; min-height: 44px; padding: 8px; appearance: auto; }

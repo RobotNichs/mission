@@ -2,16 +2,48 @@
 .mission-companion > svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .mission-companion .companion-breath, .mission-companion .companion-expression { transform-origin: 100px 150px; }
 .mission-companion .companion-eyes { transform-box: fill-box; transform-origin: center; }
+.mission-companion .companion-inner-ear { transform-box: fill-box; transform-origin: center bottom; }
+.mission-companion[data-state='focus'] .companion-expression { transform: translateY(2px); }
+.mission-companion[data-state='pause'] .companion-gaze { transform: translateX(1.5px); }
+.mission-companion[data-state='error'] .companion-expression { transform: rotate(-1.5deg); }
+.mission-companion[data-state='error'] .companion-gaze { transform: translate(1px, -.5px); }
 .mission-companion[data-animated='true'][data-state='idle'] .companion-breath { animation: companion-breathe 7s ease-in-out infinite; }
 .mission-companion[data-animated='true'][data-state='idle'] .companion-eyes { animation: companion-blink 9s ease-in-out infinite; }
+.mission-companion[data-animated='true'][data-state='idle'] .companion-gaze { animation: companion-curious-gaze 12s ease-in-out infinite; }
+.mission-companion[data-animated='true'][data-state='idle'] .companion-inner-ear-left { animation: companion-ear-twitch 15s ease-in-out infinite; }
 .mission-companion[data-animated='true'][data-state='focus'] .companion-eyes { animation: companion-blink 17s ease-in-out infinite; }
 .mission-companion[data-animated='true'][data-state='success'] .companion-expression { animation: companion-success 850ms ease-out 1; }
 .mission-companion[data-animated='true'][data-state='success'] .companion-warmth { animation: companion-warmth 850ms ease-out 1; }
+.mission-companion[data-animated='true'][data-state='pause'] .companion-eyes { animation: companion-blink 23s ease-in-out infinite; }
+.mission-companion[data-animated='true'][data-state='pause'] .companion-gaze { animation: companion-rest-gaze 20s ease-in-out infinite; }
+.mission-companion[data-animated='true'][data-state='error'] .companion-expression { animation: companion-question 600ms ease-out 1; }
+.mission-companion[data-animated='true'][data-state='error'] .companion-eyes { animation: companion-surprise 600ms ease-out 1; }
+.mission-companion[data-animated='true'][data-state='levelUp'] .companion-expression { animation: companion-level-up 1400ms ease-out 1; }
+.mission-companion[data-animated='true'][data-state='levelUp'] .companion-warmth { animation: companion-level-light 1400ms ease-out 1; }
 .mission-companion[data-motion='paused'] * { animation-play-state: paused !important; }
+.mission-companion[data-silhouette='true'] .companion-expression { transform: none; }
 @keyframes companion-breathe { 50% { transform: scale(1.012, 1.018); } }
 @keyframes companion-blink { 0%, 43%, 47%, 100% { transform: scaleY(1); } 45% { transform: scaleY(.08); } }
 @keyframes companion-success { 40% { transform: translateY(-3px) rotate(-1deg); } }
 @keyframes companion-warmth { 40% { opacity: .22; } }
+@keyframes companion-curious-gaze { 0%, 64%, 100% { transform: translate(0, 0); } 73%, 81% { transform: translate(2px, -.5px); } }
+@keyframes companion-ear-twitch { 0%, 72%, 79%, 100% { transform: rotate(0); } 74% { transform: rotate(-3deg); } 76% { transform: rotate(1deg); } }
+@keyframes companion-rest-gaze { 0%, 65%, 100% { transform: translateX(1.5px); } 78%, 86% { transform: translateX(-1.5px); } }
+@keyframes companion-question { 0% { transform: rotate(0); } 45% { transform: rotate(-5deg); } 100% { transform: rotate(-1.5deg); } }
+@keyframes companion-surprise { 0%, 100% { transform: scaleY(1); } 25% { transform: scaleY(1.16); } }
+@keyframes companion-level-up { 0%, 100% { transform: translateY(0) scale(1); } 20% { transform: translateY(-2px); } 60%, 72% { transform: translateY(-7px) scale(1.02); } }
+@keyframes companion-level-light { 0%, 55%, 100% { opacity: 0; } 72% { opacity: .35; } }
+/* Mutually exclusive eye phases: discrete visibility, no path morphing or crossfade. */
+.mission-companion[data-animated='true'][data-state='levelUp'] .companion-level-open { animation: companion-level-open 1400ms steps(1, end) 1; }
+.mission-companion[data-animated='true'][data-state='levelUp'] .companion-level-rest { animation: companion-level-rest 1400ms steps(1, end) 1; }
+.mission-companion[data-animated='true'][data-state='levelUp'] .companion-level-pupils { animation: companion-level-pupils 1400ms steps(1, end) 1; }
+.mission-companion[data-animated='true'][data-state='levelUp'] .companion-level-hearts { animation: companion-level-hearts 1400ms steps(1, end) 1; }
+.mission-companion[data-animated='true'][data-state='levelUp'][data-small='true'] .companion-level-pupils { animation-name: companion-level-small-pupils; }
+@keyframes companion-level-open { 0% { visibility: visible; opacity: 1; } 65%, 100% { visibility: hidden; opacity: 0; } }
+@keyframes companion-level-rest { 0% { visibility: hidden; } 65%, 100% { visibility: visible; } }
+@keyframes companion-level-pupils { 0% { visibility: visible; } 35%, 100% { visibility: hidden; } }
+@keyframes companion-level-hearts { 0% { visibility: hidden; } 35% { visibility: visible; } 65%, 100% { visibility: hidden; } }
+@keyframes companion-level-small-pupils { 0% { visibility: visible; } 65%, 100% { visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) {
   .mission-companion * { animation: none !important; }
 }
