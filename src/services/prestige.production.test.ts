@@ -14,16 +14,15 @@ it('entfernt die Prestige-Vorschau aus einem echten Produktionsbundle', async ()
   const source = outputs.flatMap(output => 'output' in output ? output.output : [])
     .map(chunk => chunk.type === 'chunk' ? chunk.code : '').join('\n')
   expect(source).toContain('Maximaler Prestige-Rang V')
-  // Skin configuration is now required for backup validation; the renderer and preview remain isolated.
-  for (const marker of ['Mission Companion Base', 'companion-preview', 'companion-expression', 'companion-breathe', 'companion-level-up', 'companion-curious-gaze', 'companion-skin-grid', 'Reduzierte Bewegung simulieren']) {
+  // Home now uses the production renderer. Only preview controls and layouts remain development-only.
+  for (const marker of ['Mission Companion Base', 'companion-preview', 'companion-skin-grid', 'Reduzierte Bewegung simulieren']) {
     expect(source, `Keine lokale Companion-Preview: ${marker}`).not.toContain(marker)
   }
+  expect(source).toContain('companion-expression')
   const assets = outputs.flatMap(output => 'output' in output ? output.output : [])
     .filter(chunk => chunk.type === 'asset' && chunk.fileName.endsWith('.css'))
   for (const asset of assets) if (asset.type === 'asset') {
     expect(String(asset.source)).not.toContain('companion-preview')
-    expect(String(asset.source)).not.toContain('companion-level-up')
-    expect(String(asset.source)).not.toContain('companion-curious-gaze')
     expect(String(asset.source)).not.toContain('companion-skin-grid')
   }
   for (const marker of ['Globalen Test-Level verwenden', 'Test-Level zurücksetzen', 'onDisplayLevelChange', 'debug-level-preview']) {

@@ -1,0 +1,45 @@
+/* Home V2 only: existing ambient surface, timer mechanics and other pages stay intact. */
+.app-shell[data-app-area="home"] .home-mission {
+  order: 0; display: block; padding: var(--spacing-lg); border: 0;
+  background: transparent; margin-block: var(--spacing-sm) var(--spacing-lg);
+}
+.home-mission-intro { display: grid; justify-items: center; gap: var(--spacing-sm); text-align: center; }
+.home-mission-intro > div { min-width: 0; }
+.app-shell .home-mission h2 { max-width: 36ch; font-size: clamp(21px, 3vw, 29px); line-height: 1.35; overflow-wrap: anywhere; margin-bottom: 0; }
+.home-mission .home-session-status { display: table; margin: 0 auto var(--spacing-sm); padding: 5px 12px; border-radius: 99px; background: #aba0d612; color: var(--ink); font-size: 12px; line-height: 1.5; }
+.home-mission-meta { color: var(--muted); font-size: 13px; line-height: 1.6; }
+.home-next-step { line-height: 1.6; overflow-wrap: anywhere; font-size: 13px; color: var(--muted); }
+.home-next-step strong { font-size: 14px; font-weight: 500; }
+.home-mission { text-align: center; }
+.home-primary-action { display: flex; justify-content: center; width: 100%; max-width: 440px; min-height: 48px; margin: var(--spacing-md) auto var(--spacing-sm); }
+.home-secondary-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--spacing-sm) var(--spacing-md); }
+.app-shell[data-app-area="home"] .home-mission .home-secondary-actions .focus-leave { min-height: 44px; padding: 8px 12px; background: transparent; border-color: transparent; font-size: 13px; }
+.app-shell[data-app-area="home"] .home-mission .home-secondary-actions .focus-leave:hover:not(:disabled) { border-color: var(--line); background: var(--surface-input); }
+.companion-hero-stage { position: relative; isolation: isolate; display: grid; place-items: center; width: min(280px, 100%); min-height: 218px; }
+.companion-hero-scenery { position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse at center, #ad92de20, #e8baa309 42%, transparent 68%); }
+.companion-hero-scenery i { position: absolute; inset: 24% 6%; border: 1px solid #b6a4e52a; border-radius: 50%; transform: rotate(-16deg); }
+.companion-hero-scenery i:nth-child(2) { inset: 34% 3%; border-color: #e8c1a81c; transform: rotate(18deg); }
+.companion-hero-scenery span { position: absolute; inset: 12px; background: radial-gradient(circle at 12% 43%, #f2d8b78c 0 1px, transparent 2px), radial-gradient(circle at 86% 34%, #beafe78c 0 1px, transparent 2px), radial-gradient(circle at 74% 84%, #e5c9bd66 0 1px, transparent 2px); animation: companion-hero-drift 14s ease-in-out infinite alternate; }
+.companion-hero-stage[data-motion="paused"] .companion-hero-scenery span { animation-play-state: paused; }
+@keyframes companion-hero-drift { from { transform: translateY(-2px); opacity: .6; } to { transform: translateY(3px); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .companion-hero-scenery span { animation: none; transform: none; } }
+.app-shell[data-app-area="home"] .timer-panel { order: 1; padding: var(--spacing-md); margin-block: 0 var(--spacing-md); }
+.app-shell[data-app-area="home"] .timer-panel { border-color: transparent; background: transparent; }
+.app-shell[data-app-area="home"] .timer-panel .timer-button { color: var(--ink); background: var(--surface-raised); border: 1px solid var(--line); box-shadow: none; }
+.app-shell[data-app-area="home"] .mission-support { order: 2; }
+.app-shell[data-app-area="home"] .mission-core-panel { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: var(--spacing-md); padding: var(--spacing-md); }
+.app-shell[data-app-area="home"] .mission-core-heading { grid-column: 1 / -1; margin: 0; }
+.app-shell[data-app-area="home"] .mission-core-heading h2 { font-size: 16px; }
+.app-shell[data-app-area="home"] .mission-core-panel .core-column { width: 80px; padding: 0; gap: var(--spacing-xs); }
+.app-shell[data-app-area="home"] .core-stats { display: flex; flex-wrap: wrap; gap: var(--spacing-sm) var(--spacing-md); margin-block: var(--spacing-sm); }
+.app-shell[data-app-area="home"] .core-stats dd { font-size: 14px; margin: 0; }
+.app-shell[data-app-area="home"] .core-stats dt { font-size: 11px; }
+.app-shell[data-app-area="home"] .reward-notice { min-height: 0; font-size: 11px; line-height: 1.5; }
+.app-shell[data-app-area="home"] .timer-message h2 { font-size: 16px; }
+.app-shell[data-app-area="home"] .timer-clock { font-size: 32px; }
+@media (max-width: 430px) {
+  .app-shell[data-app-area="home"] .home-mission { padding: var(--spacing-sm) 0; }
+  .home-secondary-actions button { flex: 0 1 auto; }
+  .app-shell[data-app-area="home"] .mission-core-panel { grid-template-columns: 64px minmax(0, 1fr); gap: var(--spacing-sm); }
+  .app-shell[data-app-area="home"] .mission-core-panel .core-column { width: 64px; }
+}

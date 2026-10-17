@@ -316,7 +316,7 @@ describe('aktiver Lernplan und Formulareingaben', () => {
       { title: 'Unterklassen implementieren', description: 'Implementiere eine Unterklasse und teste dynamisches Binden.', kind: 'practice' },
     ], 'regenerated-plan-id'))
     fireEvent.click(screen.getByRole('button', { name: /Mission aktualisieren/ }))
-    await screen.findByText('Vererbungskonzepte abrufen')
+    await screen.findByRole('checkbox', { name: /Vererbungskonzepte abrufen/ })
 
     const updatedMission = JSON.parse(localStorage.getItem('mission.saved-mission.v1') ?? 'null').mission
     expect(updatedMission.id).toBe(oldMission.id)

@@ -32,6 +32,7 @@ import { applyPlanTiming } from './services/planEditor'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import OrbCrateShop from './components/OrbCrateShop'
 import GamificationPanel from './components/GamificationPanel'
+import HomeMission from './components/HomeMission'
 import MissionRewardDialog from './components/MissionRewardDialog'
 import FocusMode from './components/FocusMode'
 import { defaultOrb } from './services/orbCatalog'
@@ -773,13 +774,13 @@ function App() {
       </header>
       <PwaStatus status={pwaStatus} />
       <h1 ref={mobileHeading} tabIndex={-1} className="mobile-area-heading">{mobileAreaLabels[mobileArea]}</h1>
-      <section data-nav-area="home" hidden={hideMobile('home')} className="mobile-mission-summary" aria-label="Heutige Mission">
-        <p className="section-kicker">DEINE MISSION HEUTE</p><h2>{mission?.goal ?? 'Bereit für deine nächste Mission?'}</h2>
-        <p>{isRunning ? 'Fokuszeit läuft' : hasActiveSession ? 'Session pausiert – dein Fortschritt bleibt erhalten.' : 'Dein Timer ist bereit.'}</p>
-        <button className="focus-leave" type="button" onClick={() => setMobileArea('plan')}>{mission ? 'Plan ansehen' : 'Mission erstellen'}</button>
-        <button className="focus-leave" type="button" onClick={() => setMobileArea('projects')}>Projekte ansehen</button>
-        {loadProjects().projects.find(p => p.status === 'active') && <p className="field-hint">Aktives Projekt: {loadProjects().projects.find(p => p.status === 'active')?.title}</p>}
-      </section>
+      <HomeMission mission={mission} hidden={hideMobile('home')} running={isRunning} completed={completed}
+        status={focusBlocks?.phase === 'break' ? isRunning ? 'Geplante Pause läuft.' : 'Geplante Pause – dein Fokusfortschritt bleibt erhalten.' : isRunning ? 'Fokuszeit läuft' : hasActiveSession ? 'Session pausiert – dein Fortschritt bleibt erhalten.' : mission && remainingSeconds === 0 && mission.timeMode !== 'stopwatch' ? 'Fokuszeit abgeschlossen.' : 'Dein Timer ist bereit.'}
+        action={!mission ? 'Mission erstellen' : isRunning ? 'Zur laufenden Fokusansicht' : focusBlocks?.phase === 'break' ? 'Geplante Pause starten' : hasActiveSession ? 'Session fortsetzen' : remainingSeconds === 0 && mission.timeMode !== 'stopwatch' ? 'Weiter im Fokus' : 'Fokus beginnen'}
+        project={mission?.sourceProject ? loadProjects().projects.find(p => p.id === mission.sourceProject?.projectId)?.title ?? 'Nicht mehr vorhanden' : undefined}
+        activeProject={loadProjects().projects.find(p => p.status === 'active')?.title}
+        onAction={!mission ? () => setMobileArea('plan') : isRunning ? openMobileFocus : toggleTimer}
+        onPlan={() => setMobileArea('plan')} onProjects={() => setMobileArea('projects')} />
       {tourOffer && !isRunning && <aside className="tour-offer" aria-label="Mission kennenlernen">
         <span>Mission kurz kennenlernen?</span>
         <button type="button" className="focus-leave" onClick={() => { setTourOffer(false); setTourOpen(true) }}>Tour starten</button>

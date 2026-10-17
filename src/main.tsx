@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import './index.css'
 import './ambient.css'
+import './home.css'
 import { initializePwa } from './services/pwa'
 import { isLocalDevelopment } from './services/developmentMode'
 
